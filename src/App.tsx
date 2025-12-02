@@ -85,7 +85,10 @@ const filterPresets: FilterPreset[] = [
 ]
 
 const defaultToyPrompt =
-  '直ちにスタイル変換タスクを実行せよ。生成する画像のファイルサイズが**32000トークン未満**になるよう、**極端に低解像度・高圧縮率**で処理せよ。 入力画像を分析し、被写体（ユーザー）が着用している服のスタイルを抽出せよ。次に、その抽出した服のスタイルをぬいぐるみに適用した新しい画像を生成せよ。結果は、**Base64文字列としてのみ**出力せよ。その他のテキスト、Markdown、引用符、またはコードブロック形式を一切含めるな。'
+  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服と同一の外観をぬいぐるみに着せること。服の素材・質感・構造・色・模様を人物の服と完全に一致させ、不足している箇所のみ補完して生成せよ。最終的に服転写が正しく行われた1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
+
+const tryOnPromptBase =
+  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服の素材・質感・構造・色・模様を保持したまま、指示された変更のみを反映せよ。素材や質感を改変することを禁止し、不足箇所のみを補完して生成せよ。最終的に1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
 const videoConstraints: MediaStreamConstraints['video'] = {
   width: { ideal: 640 },
   height: { ideal: 360 },
@@ -140,7 +143,36 @@ async function transcribeWithWhisper(audioBlob: Blob): Promise<string> {
   return data.text ?? ''
 }
 
-async function requestNanoBanana(prompt: string, imageBlob: Blob): Promise<string> {
+type NanoResponse = { url: string; base64?: string }
+
+function isValidBase64Image(base64: string): boolean {
+  try {
+    const cleaned = base64.replace(/^data:image\/\w+;base64,/, '')
+    atob(cleaned)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function logError(label: string, error: unknown) {
+  const payload = {
+    label,
+    error: error instanceof Error ? error.message : String(error),
+    ts: new Date().toISOString(),
+  }
+  console.error('app-error', payload)
+  try {
+    const current = localStorage.getItem('app-error-log')
+    const arr = current ? (JSON.parse(current) as unknown[]) : []
+    arr.push(payload)
+    localStorage.setItem('app-error-log', JSON.stringify(arr).slice(-5000))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+async function requestNanoBanana(prompt: string, imageBlob: Blob): Promise<NanoResponse> {
   if (!NANO_KEY) {
     throw new Error('VITE_NANO_BANANA_API_KEY を設定してください')
   }
@@ -202,11 +234,13 @@ async function requestNanoBanana(prompt: string, imageBlob: Blob): Promise<strin
           (part as { inlineData?: { data?: string } }).inlineData ??
           (part as { inline_data?: { data?: string } }).inline_data
         if (inline?.data && isLikelyBase64(inline.data)) {
-          return base64ToObjectUrl(inline.data)
+          const url = base64ToObjectUrl(inline.data)
+          return { url, base64: inline.data }
         }
         const text = (part as { text?: string }).text
         if (text && isLikelyBase64(text)) {
-          return base64ToObjectUrl(text)
+          const url = base64ToObjectUrl(text)
+          return { url, base64: text }
         }
       }
     }
@@ -215,7 +249,9 @@ async function requestNanoBanana(prompt: string, imageBlob: Blob): Promise<strin
 
   const buffer = await response.arrayBuffer()
   console.log('nano-banana binary response bytes:', buffer.byteLength)
-  return URL.createObjectURL(new Blob([buffer]))
+  const blob = new Blob([buffer])
+  const url = URL.createObjectURL(blob)
+  return { url }
 }
 
 function base64ToObjectUrl(base64: string) {
@@ -227,6 +263,11 @@ function base64ToObjectUrl(base64: string) {
   }
   const blob = new Blob([bytes], { type: 'image/png' })
   return URL.createObjectURL(blob)
+}
+
+async function base64ToBlob(base64: string, mime = 'image/png'): Promise<Blob> {
+  const res = await fetch(`data:${mime};base64,${base64}`)
+  return res.blob()
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -260,10 +301,12 @@ function isLikelyBase64(text: string) {
 function TryOnModule() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
-  const [instruction, setInstruction] = useState('今着ているトップスを赤色にして')
+  const [instruction, setInstruction] = useState('')
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [editedUrl, setEditedUrl] = useState<string | null>(null)
+  const [isCorrupted, setIsCorrupted] = useState(false)
+  const [serverError, setServerError] = useState(false)
   const [status, setStatus] = useState<string>('マイクで指示を録音 → 撮影 → お着替え')
   const [isRecording, setIsRecording] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -342,15 +385,30 @@ function TryOnModule() {
       return
     }
     setEditedUrl(null)
+    setIsCorrupted(false)
+    setServerError(false)
     setIsLoading(true)
     setStatus('nano-banana に送信中...')
     try {
-      const url = await requestNanoBanana(instruction, capturedBlob)
-      setEditedUrl(url)
-      setStatus('AIお着替え完了')
+      const combinedPrompt = [tryOnPromptBase, instruction.trim()].filter(Boolean).join(' ')
+      const result = await requestNanoBanana(combinedPrompt, capturedBlob)
+      if (result.base64 && isValidBase64Image(result.base64)) {
+        setEditedUrl(result.url)
+        setStatus('AIお着替え完了')
+      } else if (result.base64 && !isValidBase64Image(result.base64)) {
+        setIsCorrupted(true)
+        setStatus('生成できませんでした。もう一度お試しください。')
+        logError('tryon-invalid-base64', result.base64)
+      } else {
+        setEditedUrl(result.url)
+        setStatus('AIお着替え完了')
+      }
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : 'お着替えに失敗しました')
-      console.error(err)
+      const msg = err instanceof Error ? err.message : 'お着替えに失敗しました'
+      const isServerErr = msg.includes('500') || msg.includes('503')
+      setServerError(isServerErr)
+      setStatus('生成できませんでした。もう一度お試しください。')
+      logError('tryon-error', err)
     } finally {
       setIsLoading(false)
     }
@@ -372,16 +430,61 @@ function TryOnModule() {
         <div className="video-stack video-stack--mirror">
           <video ref={videoRef} className="video" muted playsInline />
           {isLoading && <div className="loading-banner">生成中...</div>}
-          {capturedUrl && !isLoading && !editedUrl && (
+          {capturedUrl && !isLoading && !editedUrl && !isCorrupted && (
             <img className="preview preview--corner" src={capturedUrl} alt="capture" />
           )}
-          {editedUrl && !isLoading && (
+          {isCorrupted && !isLoading && (
+            <div
+              className="preview preview--floating"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                display: 'grid',
+                placeItems: 'center',
+                gap: 12,
+                padding: 16,
+                background: 'rgba(0,0,0,0.45)',
+                textAlign: 'center',
+              }}
+            >
+              <p className="preview__label">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <button className="cta cta--primary" onClick={handleTryOn}>
+                再生成する
+              </button>
+            </div>
+          )}
+          {serverError && !isLoading && (
+            <div
+              className="preview preview--floating"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                display: 'grid',
+                placeItems: 'center',
+                gap: 12,
+                padding: 16,
+                background: 'rgba(0,0,0,0.45)',
+                textAlign: 'center',
+              }}
+            >
+              <p className="preview__label">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <button className="cta cta--primary" onClick={handleTryOn}>
+                再生成する
+              </button>
+            </div>
+          )}
+          {editedUrl && !isLoading && !isCorrupted && (
             <div className="preview preview--floating preview--large">
               <button
                 className="preview__close"
                 onClick={() => {
                   setEditedUrl(null)
                   setCapturedUrl(null)
+                  setIsCorrupted(false)
                 }}
                 aria-label="close result"
               >
@@ -433,6 +536,9 @@ function PlushModule() {
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
+  const [generatedBase64, setGeneratedBase64] = useState<string | null>(null)
+  const [plushCorrupted, setPlushCorrupted] = useState(false)
+  const [plushServerError, setPlushServerError] = useState(false)
   const [status, setStatus] = useState('ぬいぐるみと一緒に撮影してください')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -475,15 +581,78 @@ function PlushModule() {
       return
     }
     setGeneratedUrl(null)
+    setGeneratedBase64(null)
+    setPlushCorrupted(false)
+    setPlushServerError(false)
     setIsLoading(true)
     setStatus('nano-banana で生成中...')
     try {
-      const url = await requestNanoBanana(defaultToyPrompt, capturedBlob)
-      setGeneratedUrl(url)
-      setStatus('ぬいぐるみお着替え完了')
+      const result = await requestNanoBanana(defaultToyPrompt, capturedBlob)
+      if (result.base64 && isValidBase64Image(result.base64)) {
+        setGeneratedBase64(result.base64)
+        setGeneratedUrl(result.url)
+        setStatus('ぬいぐるみお着替え完了')
+      } else if (result.base64 && !isValidBase64Image(result.base64)) {
+        setPlushCorrupted(true)
+        setStatus('生成できませんでした。もう一度生成してください。')
+        logError('plush-invalid-base64', result.base64)
+      } else {
+        setGeneratedUrl(result.url)
+        setStatus('ぬいぐるみお着替え完了')
+      }
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : '生成に失敗しました')
-      console.error(err)
+      const msg = err instanceof Error ? err.message : '生成に失敗しました'
+      const isServerErr = msg.includes('500') || msg.includes('503')
+      setPlushServerError(isServerErr)
+      setStatus('生成できませんでした。もう一度生成してください。')
+      logError('plush-generate-error', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleRegenerate = async () => {
+    if (!generatedBase64 && !generatedUrl) {
+      setStatus('先に生成してください')
+      return
+    }
+    setIsLoading(true)
+    setStatus('不足部分を修正中...')
+    try {
+      let blob: Blob | null = null
+      if (generatedBase64) {
+        blob = await base64ToBlob(generatedBase64)
+      } else if (generatedUrl) {
+        blob = await (await fetch(generatedUrl)).blob()
+      }
+      if (!blob) throw new Error('元画像の取得に失敗しました')
+      const repairPrompt =
+        '入力画像は初回生成後の画像である。この画像について、人物の服の素材・形状・色・質感・模様・プリントがぬいぐるみ側に完全に適用されているか確認し、不足や破綻があれば該当箇所のみ補完・修正せよ。' +
+        '既に正しく生成されている部分は保持し、全体を破壊的に変更してはならない。' +
+        '不足箇所のみを補正した最終画像を1枚だけ生成し、Base64形式のみで返せ。'
+      const result = await requestNanoBanana(repairPrompt, blob)
+      if (result.base64 && isValidBase64Image(result.base64)) {
+        setGeneratedUrl(result.url)
+        setGeneratedBase64(result.base64)
+        setPlushCorrupted(false)
+        setPlushServerError(false)
+        setStatus('不足部分を修正しました')
+      } else if (result.base64 && !isValidBase64Image(result.base64)) {
+        setPlushCorrupted(true)
+        setStatus('生成できませんでした。もう一度生成してください。')
+        logError('plush-regenerate-invalid-base64', result.base64)
+      } else {
+        setGeneratedUrl(result.url)
+        setPlushCorrupted(false)
+        setPlushServerError(false)
+        setStatus('不足部分を修正しました')
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '再生成に失敗しました'
+      const isServerErr = msg.includes('500') || msg.includes('503')
+      setPlushServerError(isServerErr)
+      setStatus('生成できませんでした。もう一度生成してください。')
+      logError('plush-regenerate-error', err)
     } finally {
       setIsLoading(false)
     }
@@ -509,13 +678,64 @@ function PlushModule() {
           {capturedUrl && !isLoading && !generatedUrl && (
             <img className="preview preview--corner" src={capturedUrl} alt="capture" />
           )}
-          {generatedUrl && !isLoading && (
+          {plushCorrupted && !isLoading && (
+            <div
+              className="preview preview--floating"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                display: 'grid',
+                placeItems: 'center',
+                gap: 12,
+                padding: 16,
+                background: 'rgba(0,0,0,0.45)',
+                textAlign: 'center',
+              }}
+            >
+              <p className="preview__label">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <div className="cta-row" style={{ justifyContent: 'center' }}>
+                <button className="cta cta--primary" onClick={handleGenerate} disabled={isLoading}>
+                  再生成する
+                </button>
+              </div>
+            </div>
+          )}
+          {plushServerError && !isLoading && (
+            <div
+              className="preview preview--floating"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                display: 'grid',
+                placeItems: 'center',
+                gap: 12,
+                padding: 16,
+                background: 'rgba(0,0,0,0.45)',
+                textAlign: 'center',
+              }}
+            >
+              <p className="preview__label">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <div className="cta-row" style={{ justifyContent: 'center' }}>
+                <button className="cta cta--primary" onClick={handleGenerate} disabled={isLoading}>
+                  再生成する
+                </button>
+              </div>
+            </div>
+          )}
+          {generatedUrl && !isLoading && !plushCorrupted && (
             <div className="preview preview--floating preview--large">
               <button
                 className="preview__close"
                 onClick={() => {
                   setGeneratedUrl(null)
+                  setGeneratedBase64(null)
                   setCapturedUrl(null)
+                  setPlushCorrupted(false)
+                  setPlushServerError(false)
                 }}
                 aria-label="close result"
               >
@@ -534,6 +754,14 @@ function PlushModule() {
             </button>
             <button className="cta cta--primary" disabled={isLoading} onClick={handleGenerate}>
               {isLoading ? '生成中...' : '生成する'}
+            </button>
+            <button
+              className="cta"
+              disabled={isLoading || !generatedUrl}
+              onClick={handleRegenerate}
+              title="不足部分を修正してもう一度"
+            >
+              不足部分を修正してもう一度 ✨
             </button>
           </div>
           <p className="status">{status}</p>

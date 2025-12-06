@@ -1,94 +1,24 @@
-import { FaceLandmarker, FilesetResolver, type FaceLandmarkerResult } from '@mediapipe/tasks-vision'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import './App.css'
+import { useEffect, useRef, useState } from 'react'
 
-type Tab = 'tryon' | 'plush' | 'filters'
+type Tab = 'tryon' | 'plush' | 'plush-change'
 
 const NANO_URL =
   import.meta.env.VITE_NANO_BANANA_URL ??
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 const NANO_KEY = import.meta.env.VITE_NANO_BANANA_API_KEY ?? ''
 const WHISPER_URL =
   import.meta.env.VITE_WHISPER_URL ?? 'https://api.openai.com/v1/audio/transcriptions'
 const WHISPER_KEY = import.meta.env.VITE_WHISPER_API_KEY ?? ''
-
-type FilterPreset = {
-  id: string
-  label: string
-  modality: 'skin_enhancement' | 'age_transformation' | 'style_transfer' | 'animal_ears'
-  overlay?: 'ears' | 'comic' | 'retro' | 'bokeh' | 'glow' | 'rabbit' | 'stars' | 'injury' | 'hearts' | 'crown' | 'eye_black' | 'bear'
-  adjust?: {
-    brightness: number
-    contrast: number
-    saturation: number
-    tint: [number, number, number]
-  }
-}
-
-const filterPresets: FilterPreset[] = [
-  {
-    id: 'beauty',
-    label: 'ほっぺハート',
-    modality: 'skin_enhancement',
-    overlay: 'hearts',
-    adjust: { brightness: 0.06, contrast: 1.04, saturation: 1.12, tint: [1.05, 1.02, 1.08] },
-  },
-  {
-    id: 'grandpa',
-    label: 'おじいさん',
-    modality: 'age_transformation',
-    overlay: 'retro',
-    adjust: { brightness: -0.02, contrast: 1.12, saturation: 0.75, tint: [1.05, 0.95, 0.82] },
-  },
-  {
-    id: 'comic',
-    label: 'ほっぺキラキラ',
-    modality: 'style_transfer',
-    overlay: 'stars',
-    adjust: { brightness: 0.02, contrast: 1.1, saturation: 1.1, tint: [1.02, 1.02, 1.02] },
-  },
-  {
-    id: 'injury',
-    label: '怪我した人',
-    modality: 'style_transfer',
-    overlay: 'injury',
-    adjust: { brightness: -0.05, contrast: 1.15, saturation: 0.9, tint: [1, 0.9, 0.9] },
-  },
-  {
-    id: 'tsurime',
-    label: '王冠',
-    modality: 'style_transfer',
-    overlay: 'crown',
-    adjust: { brightness: 0.03, contrast: 1.08, saturation: 1.05, tint: [1.02, 1.01, 1.02] },
-  },
-  {
-    id: 'tareme',
-    label: '目を暗く',
-    modality: 'skin_enhancement',
-    overlay: 'eye_black',
-    adjust: { brightness: -0.01, contrast: 1.02, saturation: 0.98, tint: [1.0, 1.0, 1.0] },
-  },
-  {
-    id: 'rabbit',
-    label: 'ウサギの耳',
-    modality: 'animal_ears',
-    overlay: 'rabbit',
-    adjust: { brightness: 0.02, contrast: 1.08, saturation: 1.1, tint: [1.02, 1.0, 1.05] },
-  },
-  {
-    id: 'stars',
-    label: 'クマ耳',
-    modality: 'animal_ears',
-    overlay: 'bear',
-    adjust: { brightness: 0.02, contrast: 1.06, saturation: 1.05, tint: [1.02, 1.0, 1.02] },
-  },
-]
 
 const defaultToyPrompt =
   '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服と同一の外観をぬいぐるみに着せること。服の素材・質感・構造・色・模様を人物の服と完全に一致させ、不足している箇所のみ補完して生成せよ。最終的に服転写が正しく行われた1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
 
 const tryOnPromptBase =
   '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服の素材・質感・構造・色・模様を保持したまま、指示された変更のみを反映せよ。素材や質感を改変することを禁止し、不足箇所のみを補完して生成せよ。最終的に1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
+
+const plushChangePromptBase =
+  '入力画像の人間の顔と体、および人間のプロポーションを破棄し、参照ぬいぐるみ画像の形状・質感・材質に完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止せよ。人間の顔や体型を丸くディフォルメされたぬいぐるみ体型に置き換え、服のテクスチャと色は元画像のまま保持して形状のみをぬいぐるみ体型にフィットさせよ。髪や肌の質感もぬいぐるみ素材に置き換えよ。入力画像に写っていた人間は最終画像に一切表示しないこと。最終的に1枚の画像のみを生成し、Base64文字列のみを返せ。'
+
 const videoConstraints: MediaStreamConstraints['video'] = {
   width: { ideal: 640 },
   height: { ideal: 360 },
@@ -172,24 +102,35 @@ function logError(label: string, error: unknown) {
   }
 }
 
-async function requestNanoBanana(prompt: string, imageBlob: Blob): Promise<NanoResponse> {
+async function requestNanoBanana(prompt: string, imageBlob: Blob, refBlob?: Blob): Promise<NanoResponse> {
   if (!NANO_KEY) {
     throw new Error('VITE_NANO_BANANA_API_KEY を設定してください')
   }
   const base64Image = await blobToBase64(imageBlob)
+  const refBase64 = refBlob ? await blobToBase64(refBlob) : null
+
+  const parts: Array<{ inline_data?: { mime_type: string; data: string }; text?: string }> = []
+  parts.push({
+    inline_data: {
+      mime_type: 'image/jpeg',
+      data: base64Image,
+    },
+  })
+  if (refBase64) {
+    parts.push({
+      inline_data: {
+        mime_type: 'image/png',
+        data: refBase64,
+      },
+    })
+  }
+  parts.push({ text: prompt })
+
   const body = {
     contents: [
       {
         role: 'user',
-        parts: [
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64Image,
-            },
-          },
-          { text: prompt },
-        ],
+        parts,
       },
     ],
     generationConfig: {
@@ -368,6 +309,9 @@ function TryOnModule() {
 
   const handleCapture = async () => {
     if (!videoRef.current) return
+    setIsCorrupted(false)
+    setServerError(false)
+    setEditedUrl(null)
     setStatus('撮影中...')
     try {
       const shot = await captureStill(videoRef.current)
@@ -415,72 +359,78 @@ function TryOnModule() {
   }
 
   return (
-    <section className="panel">
-      <header className="panel__header">
-        <div>
-          <p className="eyebrow">AI試着</p>
-          <p className="muted">マイク→撮影→お着替えの3ステップで試着を体験できます。</p>
+    <section className="rounded-[18px] p-[18px] bg-[rgba(10,13,28,0.92)] border border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.3)] space-y-4">
+      <header className="flex justify-between items-center gap-3 mb-3">
+        <div className="space-y-1">
+          <p className="text-[12px] uppercase tracking-[0.08em] text-[#9ccfff] m-0">AI試着</p>
+          <p className="text-sm text-[#9fa8c1] m-0">マイク→撮影→お着替えの3ステップで試着を体験できます。</p>
         </div>
-        <span className={`pill ${streamError ? 'pill--error' : 'pill--ok'}`}>
+        <span
+          className={`px-3 py-2 rounded-full text-[12px] border ${
+            streamError
+              ? 'bg-[rgba(255,132,132,0.15)] text-[#ffc3c3] border-[rgba(255,132,132,0.35)]'
+              : 'bg-[rgba(82,246,169,0.18)] text-[#b1f2d5] border-[rgba(82,246,169,0.45)]'
+          }`}
+        >
           {streamError ? 'カメラ許可が必要です' : 'カメラ準備OK'}
         </span>
       </header>
 
-      <div className="grid two-col">
-        <div className="video-stack video-stack--mirror">
-          <video ref={videoRef} className="video" muted playsInline />
-          {isLoading && <div className="loading-banner">生成中...</div>}
+      <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
+        <div className="relative overflow-hidden rounded-[16px] bg-[#0b1024] min-h-[320px] aspect-[16/9]">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover rounded-[16px] bg-[#0d132d] z-0"
+            style={{ transform: 'scaleX(-1)' }}
+            muted
+            playsInline
+          />
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
+              生成中...
+            </div>
+          )}
           {capturedUrl && !isLoading && !editedUrl && !isCorrupted && (
-            <img className="preview preview--corner" src={capturedUrl} alt="capture" />
+            <img
+              className="absolute bottom-3 right-3 max-w-[180px] rounded-[12px] border border-white/20 shadow-lg"
+              src={capturedUrl}
+              alt="capture"
+            />
           )}
           {isCorrupted && !isLoading && (
             <div
-              className="preview preview--floating"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                display: 'grid',
-                placeItems: 'center',
-                gap: 12,
-                padding: 16,
-                background: 'rgba(0,0,0,0.45)',
-                textAlign: 'center',
-              }}
+              className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]"
+              style={{ transform: 'scaleX(-1)' }}
             >
-              <p className="preview__label">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <button className="cta cta--primary" onClick={handleTryOn}>
+              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <button
+                className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
+                onClick={handleTryOn}
+                style={{ transform: 'scaleX(1)' }}
+              >
                 再生成する
               </button>
             </div>
           )}
           {serverError && !isLoading && (
             <div
-              className="preview preview--floating"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                display: 'grid',
-                placeItems: 'center',
-                gap: 12,
-                padding: 16,
-                background: 'rgba(0,0,0,0.45)',
-                textAlign: 'center',
-              }}
+              className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]"
+              style={{ transform: 'scaleX(-1)' }}
             >
-              <p className="preview__label">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <button className="cta cta--primary" onClick={handleTryOn}>
+              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <button
+                className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
+                onClick={handleTryOn}
+                style={{ transform: 'scaleX(1)' }}
+              >
                 再生成する
               </button>
             </div>
           )}
           {editedUrl && !isLoading && !isCorrupted && (
-            <div className="preview preview--floating preview--large">
+            <div className="absolute inset-0 w-full h-full left-0 right-0 flex items-center justify-center bg-[rgba(5,7,18,0.4)] rounded-[16px]">
               <button
-                className="preview__close"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full border border-white/30 bg-[rgba(0,0,0,0.4)] text-white text-lg"
                 onClick={() => {
                   setEditedUrl(null)
                   setCapturedUrl(null)
@@ -490,39 +440,53 @@ function TryOnModule() {
               >
                 ×
               </button>
-              <p className="preview__label">生成結果</p>
-              <img src={editedUrl} alt="nano banana result" />
+              <img className="max-w-full max-h-full object-contain" src={editedUrl} alt="nano banana result" />
             </div>
           )}
         </div>
 
-        <div className="control-slab">
-          <div className="cta-row">
-            <button className={`cta ${isRecording ? 'cta--warn' : ''}`} onClick={toggleRecording}>
+        <div className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={`border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition ${
+                isRecording ? 'bg-[rgba(255,166,48,0.2)] border-[rgba(255,166,48,0.5)]' : ''
+              }`}
+              onClick={toggleRecording}
+            >
               {isRecording ? '録音停止' : 'マイク開始'}
             </button>
-            <button className="cta" onClick={handleCapture}>
+            <button
+              className="border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition"
+              onClick={handleCapture}
+            >
               シャッター
             </button>
-            <button className="cta cta--primary" onClick={handleTryOn} disabled={isLoading}>
+            <button
+              className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)] disabled:opacity-60"
+              onClick={handleTryOn}
+              disabled={isLoading}
+            >
               {isLoading ? '生成中...' : 'お着替え'}
             </button>
           </div>
 
-          <label className="field">
+          <label className="flex flex-col gap-1 font-semibold text-[#dfe6ff]">
             <span>音声で認識した指示</span>
             <textarea
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
               placeholder="今着ているトップスを赤色にして"
               rows={3}
+              className="w-full min-h-[96px] px-3 py-2 rounded-[12px] border border-white/10 bg-white/5 text-white text-[15px]"
             />
           </label>
 
-          <p className="status">{status}</p>
-          {!NANO_KEY && <p className="alert">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
+          <p className="text-[#cbd3ec] m-0 text-sm">{status}</p>
+          {!NANO_KEY && <p className="text-[#ffc9c9] m-0 text-[13px]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
           {!WHISPER_KEY && (
-            <p className="alert">Whisper APIキー (VITE_WHISPER_API_KEY) が無い場合は手入力で試してください。</p>
+            <p className="text-[#ffc9c9] m-0 text-[13px]">
+              Whisper APIキー (VITE_WHISPER_API_KEY) が無い場合は手入力で試してください。
+            </p>
           )}
         </div>
       </div>
@@ -659,77 +623,77 @@ function PlushModule() {
   }
 
   return (
-    <section className="panel">
-      <header className="panel__header">
-        <div>
-          <p className="eyebrow">ぬいぐるみ制作</p>
-          <h2>一緒に写った服をぬいぐるみに転写</h2>
-          <p className="muted">シャッターボタン → nano-banana で服をコピーします。</p>
+    <section className="rounded-[18px] p-[18px] bg-[rgba(10,13,28,0.92)] border border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.3)] space-y-4">
+      <header className="flex justify-between items-center gap-3 mb-3">
+        <div className="space-y-1">
+          <p className="text-[12px] uppercase tracking-[0.08em] text-[#9ccfff] m-0">ぬいぐるみ制作</p>
+          <h2 className="text-xl font-bold text-white m-0">一緒に写った服をぬいぐるみに転写</h2>
+          <p className="text-sm text-[#9fa8c1] m-0">シャッターボタン → nano-banana で服をコピーします。</p>
         </div>
-        <span className={`pill ${streamError ? 'pill--error' : 'pill--ok'}`}>
+        <span
+          className={`px-3 py-2 rounded-full text-[12px] border ${
+            streamError
+              ? 'bg-[rgba(255,132,132,0.15)] text-[#ffc3c3] border-[rgba(255,132,132,0.35)]'
+              : 'bg-[rgba(82,246,169,0.18)] text-[#b1f2d5] border-[rgba(82,246,169,0.45)]'
+          }`}
+        >
           {streamError ? 'カメラ許可が必要です' : 'カメラ準備OK'}
         </span>
       </header>
 
-      <div className="grid two-col">
-        <div className="video-stack video-stack--mirror">
-          <video ref={videoRef} className="video" muted playsInline />
-          {isLoading && <div className="loading-banner">生成中...</div>}
+      <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
+        <div className="relative overflow-hidden rounded-[16px] bg-[#0b1024] min-h-[320px] aspect-[16/9]">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover rounded-[16px] bg-[#0d132d]"
+            style={{ transform: 'scaleX(-1)' }}
+            muted
+            playsInline
+          />
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
+              生成中...
+            </div>
+          )}
           {capturedUrl && !isLoading && !generatedUrl && (
-            <img className="preview preview--corner" src={capturedUrl} alt="capture" />
+            <img
+              className="absolute bottom-3 right-3 max-w-[180px] rounded-[12px] border border-white/20 shadow-lg"
+              src={capturedUrl}
+              alt="capture"
+            />
           )}
           {plushCorrupted && !isLoading && (
-            <div
-              className="preview preview--floating"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                display: 'grid',
-                placeItems: 'center',
-                gap: 12,
-                padding: 16,
-                background: 'rgba(0,0,0,0.45)',
-                textAlign: 'center',
-              }}
-            >
-              <p className="preview__label">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <div className="cta-row" style={{ justifyContent: 'center' }}>
-                <button className="cta cta--primary" onClick={handleGenerate} disabled={isLoading}>
+            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]">
+              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <div className="flex justify-center">
+                <button
+                  className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
+                  onClick={handleGenerate}
+                  disabled={isLoading}
+                >
                   再生成する
                 </button>
               </div>
             </div>
           )}
           {plushServerError && !isLoading && (
-            <div
-              className="preview preview--floating"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                display: 'grid',
-                placeItems: 'center',
-                gap: 12,
-                padding: 16,
-                background: 'rgba(0,0,0,0.45)',
-                textAlign: 'center',
-              }}
-            >
-              <p className="preview__label">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <div className="cta-row" style={{ justifyContent: 'center' }}>
-                <button className="cta cta--primary" onClick={handleGenerate} disabled={isLoading}>
+            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]">
+              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <div className="flex justify-center">
+                <button
+                  className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
+                  onClick={handleGenerate}
+                  disabled={isLoading}
+                >
                   再生成する
                 </button>
               </div>
             </div>
           )}
           {generatedUrl && !isLoading && !plushCorrupted && (
-            <div className="preview preview--floating preview--large">
+            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-[rgba(5,7,18,0.4)] rounded-[16px]">
               <button
-                className="preview__close"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full border border-white/30 bg-[rgba(0,0,0,0.4)] text-white text-lg"
                 onClick={() => {
                   setGeneratedUrl(null)
                   setGeneratedBase64(null)
@@ -741,22 +705,25 @@ function PlushModule() {
               >
                 ×
               </button>
-              <p className="preview__label">生成結果</p>
-              <img src={generatedUrl} alt="nano banana result" />
+              <img className="max-w-full max-h-full object-contain" src={generatedUrl} alt="nano banana result" />
             </div>
           )}
         </div>
 
-        <div className="control-slab">
-          <div className="cta-row">
-            <button className="cta" onClick={handleCapture}>
+        <div className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            <button className="border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition" onClick={handleCapture}>
               シャッター
             </button>
-            <button className="cta cta--primary" disabled={isLoading} onClick={handleGenerate}>
+            <button
+              className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)] disabled:opacity-60"
+              disabled={isLoading}
+              onClick={handleGenerate}
+            >
               {isLoading ? '生成中...' : '生成する'}
             </button>
             <button
-              className="cta"
+              className="border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition disabled:opacity-60"
               disabled={isLoading || !generatedUrl}
               onClick={handleRegenerate}
               title="不足部分を修正してもう一度"
@@ -764,32 +731,49 @@ function PlushModule() {
               不足部分を修正してもう一度 ✨
             </button>
           </div>
-          <p className="status">{status}</p>
-          {!NANO_KEY && <p className="alert">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
+          <p className="text-[#cbd3ec] m-0 text-sm">{status}</p>
+          {!NANO_KEY && <p className="text-[#ffc9c9] m-0 text-[13px]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
         </div>
       </div>
     </section>
   )
 }
 
-function LiveFiltersModule() {
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const glCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const overlayRef = useRef<HTMLCanvasElement | null>(null)
-  const glRendererRef = useRef<GLRenderer | null>(null)
-  const [streamError, setStreamError] = useState<string | null>(null)
-  const [status, setStatus] = useState('モデル読み込み中...')
-  const [filterId, setFilterId] = useState<string>('beauty')
-  const [skinTone, setSkinTone] = useState(0.15)
-  const [lipColor, setLipColor] = useState(0)
-  const [mirror, setMirror] = useState(false)
-  const [videoAspect, setVideoAspect] = useState('16 / 9')
-  const [landmarker, setLandmarker] = useState<FaceLandmarker | null>(null)
+type PlushOption = { id: string; label: string; description: string; image: string }
 
-  const selectedFilter = useMemo(
-    () => filterPresets.find((f) => f.id === filterId) ?? filterPresets[0],
-    [filterId],
-  )
+const plushOptions: PlushOption[] = [
+  {
+    id: 'plushA',
+    label: 'ぬいぐるみA',
+    description: '丸みのある可愛いシルエットのぬいぐるみタイプ',
+    image: new URL('./assets/スクリーンショット 2025-12-06 14.52.01.png', import.meta.url).href,
+  },
+  {
+    id: 'plushB',
+    label: 'ぬいぐるみB',
+    description: '細部がはっきりしたフォルムのぬいぐるみタイプ',
+    image: new URL('./assets/スクリーンショット 2025-12-06 14.52.15.png', import.meta.url).href,
+  },
+  {
+    id: 'plushC',
+    label: 'ぬいぐるみC',
+    description: 'ふんわり質感のディフォルメぬいぐるみタイプ',
+    image: new URL('./assets/スクリーンショット 2025-12-06 14.52.28.png', import.meta.url).href,
+  },
+]
+
+function PlushChangeModule() {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [streamError, setStreamError] = useState<string | null>(null)
+  const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
+  const [resultUrl, setResultUrl] = useState<string | null>(null)
+  const [selected, setSelected] = useState<PlushOption>(plushOptions[0])
+  const [isCorrupted, setIsCorrupted] = useState(false)
+  const [serverError, setServerError] = useState(false)
+  const [status, setStatus] = useState('写真を撮影して、変身先のぬいぐるみを選んでください')
+  const [isLoading, setIsLoading] = useState(false)
+  const refCache = useRef<Record<string, Blob>>({})
 
   useEffect(() => {
     let active = true
@@ -800,7 +784,6 @@ function LiveFiltersModule() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream
           videoRef.current.play()
-          setStatus('カメラ準備OK / フィルター適用中')
         }
       })
       .catch((err) => setStreamError(err.message))
@@ -809,650 +792,243 @@ function LiveFiltersModule() {
       if (videoRef.current?.srcObject instanceof MediaStream) {
         videoRef.current.srcObject.getTracks().forEach((t) => t.stop())
       }
-      glRendererRef.current?.dispose()
     }
   }, [])
 
-  useEffect(() => {
-    let mounted = true
-    const load = async () => {
-      try {
-        const filesetResolver = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.4/wasm',
-        )
-        const lm = await FaceLandmarker.createFromOptions(filesetResolver, {
-          baseOptions: {
-            modelAssetPath:
-              'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task',
-          },
-          outputFaceBlendshapes: false,
-          runningMode: 'VIDEO',
-          numFaces: 1,
-        })
-        if (mounted) {
-          setLandmarker(lm)
-          setStatus('フィルター適用中')
-        }
-      } catch (err) {
-        setStatus('顔ランドマークモデルの読み込みに失敗しました')
-        console.error(err)
-      }
+  const handleCapture = async () => {
+    if (!videoRef.current) return
+    setIsCorrupted(false)
+    setServerError(false)
+    setResultUrl(null)
+    setStatus('撮影中...')
+    try {
+      const shot = await captureStill(videoRef.current)
+      setCapturedUrl(shot.url)
+      setCapturedBlob(shot.blob)
+      setStatus('撮影完了。ぬいぐるみを選んで「変身する」を押してください')
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
     }
-    load()
-    return () => {
-      mounted = false
-      landmarker?.close()
-      glRendererRef.current?.dispose()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }
 
-  useEffect(() => {
-    const video = videoRef.current
-    const canvas = overlayRef.current
-    const glCanvas = glCanvasRef.current
-    if (!video || !canvas || !glCanvas) return
-    const handleReady = () => {
-      const width = video.videoWidth || 1280
-      const height = video.videoHeight || 720
-      canvas.width = width
-      canvas.height = height
-      glCanvas.width = width
-      glCanvas.height = height
-      console.log('handleReady sizes', { videoW: width, videoH: height })
-      setVideoAspect(`${width} / ${height}`)
-      try {
-        glRendererRef.current?.dispose()
-        glRendererRef.current = createGLRenderer(video, glCanvas)
-        setStatus('フィルター適用中')
-      } catch (err) {
-        setStatus(err instanceof Error ? err.message : 'WebGL 初期化に失敗しました')
-      }
-    }
-    if (video.readyState >= 2) handleReady()
-    video.addEventListener('loadedmetadata', handleReady)
-    return () => {
-      video.removeEventListener('loadedmetadata', handleReady)
-    }
-  }, [])
+  const buildPrompt = (option: PlushOption) =>
+    `${plushChangePromptBase} 選択したタイプ: ${option.label}。特徴: ${option.description}。`
 
-  const glAdjust = useMemo(() => {
-    const base =
-      selectedFilter.adjust ?? ({
-        brightness: 0,
-        contrast: 1,
-        saturation: 1,
-        tint: [1, 1, 1],
-      } satisfies FilterAdjustments)
-    const strength = 1
-    const mix = (v: number, center = 1) => center + (v - center) * strength
-    const brightness = base.brightness * strength
-    console.log('glAdjust inputs', { skinTone, lipColor })
-    return {
-      brightness,
-      contrast: mix(base.contrast),
-      saturation: mix(base.saturation),
-      tint: [mix(base.tint[0]), mix(base.tint[1]), mix(base.tint[2])] as [number, number, number],
-    }
-  }, [selectedFilter])
+  const getRefBlob = async (option: PlushOption) => {
+    if (refCache.current[option.id]) return refCache.current[option.id]
+    const res = await fetch(option.image)
+    const blob = await res.blob()
+    refCache.current[option.id] = blob
+    return blob
+  }
 
-  useEffect(() => {
-    let id = 0
-    const render = () => {
-      if (landmarker && videoRef.current && overlayRef.current) {
-        const result = landmarker.detectForVideo(videoRef.current, performance.now())
-        if (!result?.faceLandmarks?.[0]) {
-          console.log('landmarks missing on frame')
-        } else {
-          console.log('landmarks sample', result.faceLandmarks[0].slice(0, 3))
-        }
-        drawOverlay({
-          canvas: overlayRef.current,
-          result,
-          skinTone,
-          lipColor,
-          filter: selectedFilter,
-        })
-      }
-      if (glRendererRef.current) {
-        glRendererRef.current.draw(glAdjust)
-      }
-      id = requestAnimationFrame(render)
+  const handleTransform = async () => {
+    if (!capturedBlob) {
+      setStatus('先にシャッターを押してください')
+      return
     }
-    id = requestAnimationFrame(render)
-    return () => cancelAnimationFrame(id)
-  }, [landmarker, skinTone, selectedFilter, glAdjust])
+    setIsCorrupted(false)
+    setServerError(false)
+    setResultUrl(null)
+    setIsLoading(true)
+    setStatus('nano-banana で変身中...')
+    try {
+      const refBlob = await getRefBlob(selected)
+      const result = await requestNanoBanana(buildPrompt(selected), capturedBlob, refBlob)
+      if (result.base64 && isValidBase64Image(result.base64)) {
+        setResultUrl(result.url)
+        setStatus('ぬいぐるみ変身完了')
+      } else if (result.base64 && !isValidBase64Image(result.base64)) {
+        setIsCorrupted(true)
+        setStatus('生成できませんでした。もう一度生成してください。')
+        logError('plush-change-invalid-base64', result.base64)
+      } else {
+        setResultUrl(result.url)
+        setStatus('ぬいぐるみ変身完了')
+      }
+    } catch (err) {
+      setServerError(true)
+      setStatus('生成できませんでした。もう一度生成してください。')
+      logError('plush-change-error', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleRetry = () => handleTransform()
 
   return (
-    <section className="panel">
-      <header className="panel__header">
-        <div>
-          <p className="eyebrow">リアルタイム顔フィルター</p>
-          <p className="muted">プリセット + 肌トーン / 唇色 などをローカル処理で適用します。</p>
+    <section className="rounded-[18px] p-[18px] bg-[rgba(10,13,28,0.92)] border border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.3)] space-y-4">
+      <header className="flex justify-between items-center gap-3 mb-3">
+        <div className="space-y-1">
+          <p className="text-[12px] uppercase tracking-[0.08em] text-[#9ccfff] m-0">ぬいぐるみチェンジ</p>
+          <p className="text-sm text-[#9fa8c1] m-0">撮影した写真を、選んだぬいぐるみタイプに「変身」します。</p>
         </div>
-        <span className={`pill ${streamError ? 'pill--error' : 'pill--ok'}`}>
-          {streamError ? 'カメラ許可が必要です' : status}
+        <span
+          className={`px-3 py-2 rounded-full text-[12px] border ${
+            streamError
+              ? 'bg-[rgba(255,132,132,0.15)] text-[#ffc3c3] border-[rgba(255,132,132,0.35)]'
+              : 'bg-[rgba(82,246,169,0.18)] text-[#b1f2d5] border-[rgba(82,246,169,0.45)]'
+          }`}
+        >
+          {streamError ? 'カメラ許可が必要です' : 'カメラ準備OK'}
         </span>
       </header>
 
-      <div className="grid two-col">
-        <div
-          className={`video-stack ${mirror ? 'video-stack--mirror' : ''}`}
-          style={{ aspectRatio: videoAspect }}
-        >
-          <canvas ref={glCanvasRef} className="gl-canvas" />
-          <canvas ref={overlayRef} className="overlay" />
-          <video ref={videoRef} className="video" muted playsInline />
+      <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
+        <div className="relative overflow-hidden rounded-[16px] bg-[#0b1024] min-h-[320px] aspect-[16/9]">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover rounded-[16px] bg-[#0d132d]"
+            style={{ transform: 'scaleX(-1)' }}
+            muted
+            playsInline
+          />
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
+              生成中...
+            </div>
+          )}
+          {capturedUrl && !isLoading && !resultUrl && !isCorrupted && !serverError && (
+            <img
+              className="absolute bottom-3 right-3 max-w-[180px] rounded-[12px] border border-white/20 shadow-lg"
+              src={capturedUrl}
+              alt="capture"
+            />
+          )}
+
+          {isCorrupted && !isLoading && (
+            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]">
+              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <button
+                className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
+                onClick={handleRetry}
+              >
+                再生成する
+              </button>
+            </div>
+          )}
+
+          {serverError && !isLoading && (
+            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]">
+              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+              <button
+                className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
+                onClick={handleRetry}
+              >
+                再生成する
+              </button>
+            </div>
+          )}
+
+          {resultUrl && !isLoading && !isCorrupted && (
+            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-[rgba(5,7,18,0.4)] rounded-[16px]">
+              <button
+                className="absolute top-2 right-2 w-8 h-8 rounded-full border border-white/30 bg-[rgba(0,0,0,0.4)] text-white text-lg"
+                onClick={() => {
+                  setResultUrl(null)
+                  setCapturedUrl(null)
+                  setIsCorrupted(false)
+                  setServerError(false)
+                }}
+                aria-label="close result"
+              >
+                ×
+              </button>
+              <img className="max-w-full max-h-full object-contain" src={resultUrl} alt="plush morph result" />
+            </div>
+          )}
         </div>
 
-        <div className="control-slab">
-          <div className="filter-scroll">
-            {filterPresets.map((preset) => (
+        <div className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex flex-col gap-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
+            {plushOptions.map((opt) => (
               <button
-                key={preset.id}
-                className={`chip ${filterId === preset.id ? 'chip--active' : ''}`}
-                onClick={() => setFilterId(preset.id)}
+                key={opt.id}
+                className={`border border-white/10 bg-white/5 rounded-[12px] p-2 flex flex-col gap-2 items-center transition ${
+                  selected.id === opt.id ? 'border-[rgba(139,220,255,0.8)] bg-[rgba(139,220,255,0.12)] -translate-y-[2px]' : ''
+                }`}
+                onClick={() => setSelected(opt)}
               >
-                {preset.label}
+                <img className="w-full rounded-[10px] object-cover" src={opt.image} alt={opt.label} />
+                <div className="text-[#e8edff] font-bold text-[14px]">{opt.label}</div>
               </button>
             ))}
           </div>
-          <label className="field">
-            <span>ミラー表示</span>
-            <input type="checkbox" checked={mirror} onChange={(e) => setMirror(e.target.checked)} />
-          </label>
 
-          <label className="field slider">
-            <div>
-              <span>肌トーン</span>
-              <span className="muted">{skinTone.toFixed(2)}</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={0.8}
-              step={0.01}
-              value={skinTone}
-              onChange={(e) => setSkinTone(Number(e.target.value))}
-            />
-          </label>
-
-          <label className="field slider">
-            <div>
-              <span>唇の色</span>
-              <span className="muted">{lipColor.toFixed(2)}</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={0.8}
-              step={0.01}
-              value={lipColor}
-              onChange={(e) => setLipColor(Number(e.target.value))}
-            />
-          </label>
-
-          <p className="status">{status}</p>
+          <div className="flex flex-wrap gap-2">
+            <button className="border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition" onClick={handleCapture}>
+              シャッター
+            </button>
+            <button
+              className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)] disabled:opacity-60"
+              disabled={isLoading}
+              onClick={handleTransform}
+            >
+              {isLoading ? '生成中...' : '変身する'}
+            </button>
+          </div>
+          <p className="text-[#cbd3ec] m-0 text-sm">{status}</p>
+          {!NANO_KEY && <p className="text-[#ffc9c9] m-0 text-[13px]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
         </div>
       </div>
     </section>
   )
 }
 
-type OverlayDrawProps = {
-  canvas: HTMLCanvasElement
-  result: FaceLandmarkerResult | undefined
-  skinTone: number
-  lipColor: number
-  filter: FilterPreset
-}
-
-function drawOverlay({ canvas, result, skinTone, lipColor, filter }: OverlayDrawProps) {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
-  if (!result?.faceLandmarks?.length) return
-  const landmarks = result.faceLandmarks[0]
-  const xs = landmarks.map((p) => p.x)
-  const ys = landmarks.map((p) => p.y)
-  const minX = Math.min(...xs) * canvas.width
-  const maxX = Math.max(...xs) * canvas.width
-  const minY = Math.min(...ys) * canvas.height
-  const maxY = Math.max(...ys) * canvas.height
-  const boxWidth = maxX - minX
-  const boxHeight = maxY - minY
-  const faceCenterX = minX + boxWidth / 2
-
-  // Skin tint overlay (face contourマスクで限定)
-  const faceOvalIndices = [
-    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150,
-    136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
-  ]
-  const ovalPoints = faceOvalIndices.map((idx) => landmarks[idx]).filter(Boolean)
-  if (ovalPoints.length) {
-    ctx.save()
-    ctx.beginPath()
-    ctx.moveTo(ovalPoints[0].x * canvas.width, ovalPoints[0].y * canvas.height)
-    for (let i = 1; i < ovalPoints.length; i += 1) {
-      ctx.lineTo(ovalPoints[i].x * canvas.width, ovalPoints[i].y * canvas.height)
-    }
-    ctx.closePath()
-    ctx.clip()
-    ctx.fillStyle = `rgba(255, 215, 201, ${skinTone * 0.45})`
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.restore()
-  }
-
-  // Eye emphasis
-  // Lips color overlay（上下唇を別ポリゴンで塗布）
-  if (lipColor > 0.001) {
-    // 上唇外周
-    const upperLipIdx = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291]
-    // 下唇外周（標準FaceMeshの外周）
-    const lowerLipIdx = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291]
-    const upper = upperLipIdx.map((idx) => landmarks[idx]).filter(Boolean)
-    const lower = lowerLipIdx.map((idx) => landmarks[idx]).filter(Boolean)
-    const alpha = Math.min(0.85, 0.1 + lipColor * 1.1)
-    const fillLip = (pts: { x: number; y: number }[]) => {
-      ctx.beginPath()
-      ctx.moveTo(pts[0].x * canvas.width, pts[0].y * canvas.height)
-      for (let i = 1; i < pts.length; i += 1) {
-        ctx.lineTo(pts[i].x * canvas.width, pts[i].y * canvas.height)
-      }
-      ctx.closePath()
-      ctx.fill()
-    }
-    ctx.save()
-    ctx.fillStyle = `rgba(255, 70, 140, ${alpha})`
-    if (upper.length === upperLipIdx.length) fillLip(upper)
-    if (lower.length === lowerLipIdx.length) fillLip(lower)
-    ctx.restore()
-  }
-
-  // Filter overlays
-  if (filter.overlay === 'ears') {
-    const earWidth = boxWidth * 0.32
-    const earHeight = boxHeight * 0.35
-    const topY = minY - earHeight * 0.6
-    const leftX = faceCenterX - earWidth * 0.7
-    const rightX = faceCenterX + earWidth * 0.05
-    ctx.fillStyle = 'rgba(255, 192, 203, 0.85)'
-    drawEar(ctx, leftX, topY, earWidth, earHeight)
-    drawEar(ctx, rightX, topY, earWidth, earHeight)
-  } else if (filter.overlay === 'rabbit') {
-    const earWidth = boxWidth * 0.24
-    const earHeight = boxHeight * 0.55
-    const topY = minY - earHeight * 1.1
-    const leftX = faceCenterX - earWidth * 1.6
-    const rightX = faceCenterX + earWidth * 0.6
-    ctx.fillStyle = 'rgba(255, 220, 235, 0.9)'
-    drawEar(ctx, leftX, topY, earWidth, earHeight)
-    drawEar(ctx, rightX, topY, earWidth, earHeight)
-    ctx.fillStyle = 'rgba(255, 150, 200, 0.6)'
-    drawEar(ctx, leftX + earWidth * 0.12, topY + earHeight * 0.25, earWidth * 0.76, earHeight * 0.6)
-    drawEar(ctx, rightX + earWidth * 0.12, topY + earHeight * 0.25, earWidth * 0.76, earHeight * 0.6)
-  } else if (filter.overlay === 'comic') {
-    drawComicHalftone(ctx, canvas.width, canvas.height)
-  } else if (filter.overlay === 'retro') {
-    ctx.fillStyle = 'rgba(255, 215, 170, 0.08)'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-  } else if (filter.overlay === 'bokeh') {
-    drawBokeh(ctx, canvas.width, canvas.height)
-  } else if (filter.overlay === 'stars') {
-    drawStars(ctx, canvas.width, canvas.height, landmarks)
-  } else if (filter.overlay === 'injury') {
-    drawInjury(ctx, landmarks, canvas.width, canvas.height)
-  } else if (filter.overlay === 'hearts') {
-    drawHearts(ctx, canvas.width, canvas.height, landmarks)
-  } else if (filter.overlay === 'crown') {
-    drawCrown(ctx, canvas.width, canvas.height, landmarks)
-  } else if (filter.overlay === 'eye_black') {
-    drawEyeBlack(ctx, canvas.width, canvas.height, landmarks)
-  } else if (filter.overlay === 'bear') {
-    drawBearEars(ctx, faceCenterX, minY, boxWidth, boxHeight)
-  } else if (filter.overlay === 'glow') {
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)'
-    ctx.lineWidth = 6
-    ctx.beginPath()
-    ctx.ellipse(faceCenterX, minY + boxHeight * 0.1, boxWidth * 0.4, boxHeight * 0.2, 0, 0, Math.PI * 2)
-    ctx.stroke()
-  }
-}
-
-function drawEar(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) {
-  ctx.beginPath()
-  ctx.moveTo(x, y + height)
-  ctx.lineTo(x + width / 2, y)
-  ctx.lineTo(x + width, y + height)
-  ctx.closePath()
-  ctx.fill()
-  ctx.fillStyle = 'rgba(255,255,255,0.5)'
-  ctx.beginPath()
-  ctx.moveTo(x + width * 0.2, y + height)
-  ctx.lineTo(x + width / 2, y + height * 0.25)
-  ctx.lineTo(x + width * 0.8, y + height)
-  ctx.closePath()
-  ctx.fill()
-}
-
-function drawComicHalftone(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  ctx.fillStyle = 'rgba(255,255,255,0.12)'
-  const spacing = 24
-  for (let y = 0; y < height; y += spacing) {
-    for (let x = 0; x < width; x += spacing) {
-      ctx.beginPath()
-      ctx.arc(x, y, 4, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)'
-  ctx.lineWidth = 2
-  ctx.strokeRect(16, 16, width - 32, height - 32)
-}
-
-function drawBokeh(ctx: CanvasRenderingContext2D, width: number, height: number) {
-  const bubbles = 8
-  for (let i = 0; i < bubbles; i += 1) {
-    const radius = Math.random() * 60 + 30
-    const x = Math.random() * width
-    const y = Math.random() * height * 0.6
-    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
-    gradient.addColorStop(0, 'rgba(255,255,255,0.25)')
-    gradient.addColorStop(1, 'rgba(255,255,255,0)')
-    ctx.fillStyle = gradient
-    ctx.beginPath()
-    ctx.arc(x, y, radius, 0, Math.PI * 2)
-    ctx.fill()
-  }
-}
-
-function drawStars(ctx: CanvasRenderingContext2D, width: number, height: number, landmarks: { x: number; y: number }[]) {
-  const cheeks = [
-    { x: landmarks[234].x * width, y: landmarks[234].y * height },
-    { x: landmarks[454].x * width, y: landmarks[454].y * height },
-  ]
-  ctx.fillStyle = 'rgba(255, 236, 139, 0.9)'
-  cheeks.forEach((pos) => {
-    const size = 18
-    ctx.save()
-    ctx.translate(pos.x, pos.y)
-    ctx.beginPath()
-    for (let i = 0; i < 5; i += 1) {
-      ctx.lineTo(0, -size)
-      ctx.translate(0, -size)
-      ctx.rotate((Math.PI * 2) / 10)
-      ctx.lineTo(0, size)
-      ctx.translate(0, size)
-      ctx.rotate(-(Math.PI * 6) / 10)
-    }
-    ctx.fill()
-    ctx.restore()
-  })
-}
-
-function drawInjury(ctx: CanvasRenderingContext2D, landmarks: { x: number; y: number }[], width: number, height: number) {
-  const cheek = { x: landmarks[50].x * width, y: landmarks[50].y * height }
-  ctx.strokeStyle = 'rgba(180, 50, 50, 0.8)'
-  ctx.lineWidth = 3
-  ctx.beginPath()
-  ctx.moveTo(cheek.x - 30, cheek.y - 10)
-  ctx.lineTo(cheek.x + 30, cheek.y + 10)
-  ctx.moveTo(cheek.x - 25, cheek.y + 12)
-  ctx.lineTo(cheek.x + 25, cheek.y + 34)
-  ctx.stroke()
-}
-
-function drawHearts(ctx: CanvasRenderingContext2D, width: number, height: number, landmarks: { x: number; y: number }[]) {
-  const cheeks = [
-    { x: landmarks[234].x * width, y: landmarks[234].y * height },
-    { x: landmarks[454].x * width, y: landmarks[454].y * height },
-  ]
-  ctx.fillStyle = 'rgba(255, 105, 180, 0.9)'
-  cheeks.forEach((pos) => {
-    const size = 16
-    ctx.beginPath()
-    ctx.moveTo(pos.x, pos.y + size / 3)
-    ctx.bezierCurveTo(pos.x - size, pos.y - size / 2, pos.x - size * 1.2, pos.y + size / 2, pos.x, pos.y + size)
-    ctx.bezierCurveTo(pos.x + size * 1.2, pos.y + size / 2, pos.x + size, pos.y - size / 2, pos.x, pos.y + size / 3)
-    ctx.fill()
-  })
-}
-
-function drawCrown(ctx: CanvasRenderingContext2D, width: number, height: number, landmarks: { x: number; y: number }[]) {
-  const top = landmarks[10]
-  const left = landmarks[234]
-  const right = landmarks[454]
-  if (!top || !left || !right) return
-  const crownWidth = (right.x - left.x) * width * 1.05
-  const crownHeight = crownWidth * 0.4
-  const cx = ((left.x + right.x) / 2) * width
-  const cy = top.y * height - crownHeight * 0.25
-  const startX = cx - crownWidth / 2
-  const baseY = cy + crownHeight * 0.4
-  ctx.fillStyle = 'rgba(255, 215, 0, 0.9)'
-  ctx.beginPath()
-  ctx.moveTo(startX, baseY)
-  ctx.lineTo(startX + crownWidth * 0.16, cy - crownHeight * 0.6)
-  ctx.lineTo(startX + crownWidth * 0.33, baseY)
-  ctx.lineTo(startX + crownWidth * 0.5, cy - crownHeight * 0.65)
-  ctx.lineTo(startX + crownWidth * 0.67, baseY)
-  ctx.lineTo(startX + crownWidth * 0.84, cy - crownHeight * 0.6)
-  ctx.lineTo(startX + crownWidth, baseY)
-  ctx.closePath()
-  ctx.fill()
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
-  const peaks = [
-    { x: startX + crownWidth * 0.16, y: cy - crownHeight * 0.6 },
-    { x: startX + crownWidth * 0.5, y: cy - crownHeight * 0.65 },
-    { x: startX + crownWidth * 0.84, y: cy - crownHeight * 0.6 },
-  ]
-  peaks.forEach((p) => {
-    ctx.beginPath()
-    ctx.arc(p.x, p.y - 6, 5, 0, Math.PI * 2)
-    ctx.fill()
-  })
-}
-
-function drawEyeBlack(ctx: CanvasRenderingContext2D, width: number, height: number, landmarks: { x: number; y: number }[]) {
-  const leftEyeIdx = [33, 7, 163, 144, 145, 153, 154, 155, 133]
-  const rightEyeIdx = [362, 382, 381, 380, 374, 373, 390, 249, 263]
-  const eyes = [leftEyeIdx, rightEyeIdx]
-  ctx.fillStyle = 'rgba(10, 10, 10, 0.65)'
-  eyes.forEach((eyeIdx) => {
-    const pts = eyeIdx.map((i) => landmarks[i]).filter(Boolean)
-    if (pts.length === eyeIdx.length) {
-      ctx.beginPath()
-      ctx.moveTo(pts[0].x * width, pts[0].y * height)
-      for (let i = 1; i < pts.length; i += 1) {
-        ctx.lineTo(pts[i].x * width, pts[i].y * height)
-      }
-      ctx.closePath()
-      ctx.fill()
-    }
-  })
-}
-
-function drawBearEars(ctx: CanvasRenderingContext2D, faceCenterX: number, minY: number, boxWidth: number, boxHeight: number) {
-  const earWidth = boxWidth * 0.32
-  const earHeight = boxHeight * 0.32
-  const topY = minY - earHeight * 0.5
-  const leftX = faceCenterX - earWidth * 1.4
-  const rightX = faceCenterX + earWidth * 0.4
-  ctx.fillStyle = 'rgba(120, 90, 60, 0.95)'
-  drawEar(ctx, leftX, topY, earWidth, earHeight)
-  drawEar(ctx, rightX, topY, earWidth, earHeight)
-  ctx.fillStyle = 'rgba(200, 160, 120, 0.8)'
-  drawEar(ctx, leftX + earWidth * 0.2, topY + earHeight * 0.2, earWidth * 0.6, earHeight * 0.6)
-  drawEar(ctx, rightX + earWidth * 0.2, topY + earHeight * 0.2, earWidth * 0.6, earHeight * 0.6)
-}
-
-type FilterAdjustments = {
-  brightness: number
-  contrast: number
-  saturation: number
-  tint: [number, number, number]
-}
-
-type GLRenderer = {
-  draw: (adjust: FilterAdjustments) => void
-  dispose: () => void
-}
-
-function createGLRenderer(video: HTMLVideoElement, canvas: HTMLCanvasElement): GLRenderer {
-  const gl = canvas.getContext('webgl', { premultipliedAlpha: false })
-  if (!gl) {
-    throw new Error('WebGL がサポートされていません')
-  }
-
-  const vertexSrc = `
-    attribute vec2 a_position;
-    attribute vec2 a_texCoord;
-    varying vec2 v_texCoord;
-    void main() {
-      gl_Position = vec4(a_position, 0.0, 1.0);
-      v_texCoord = a_texCoord;
-    }
-  `
-
-  const fragmentSrc = `
-    precision mediump float;
-    varying vec2 v_texCoord;
-    uniform sampler2D u_texture;
-    uniform float u_brightness;
-    uniform float u_contrast;
-    uniform float u_saturation;
-    uniform vec3 u_tint;
-
-    vec3 applySaturation(vec3 color, float sat) {
-      float l = dot(color, vec3(0.299, 0.587, 0.114));
-      return mix(vec3(l), color, sat);
-    }
-
-    void main() {
-      vec4 tex = texture2D(u_texture, v_texCoord);
-      vec3 color = tex.rgb + vec3(u_brightness);
-      color = (color - 0.5) * vec3(u_contrast) + 0.5;
-      color = applySaturation(color, u_saturation);
-      color *= u_tint;
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `
-
-  const compile = (type: number, source: string) => {
-    const shader = gl.createShader(type)
-    if (!shader) throw new Error('shader creation failed')
-    gl.shaderSource(shader, source)
-    gl.compileShader(shader)
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      throw new Error(gl.getShaderInfoLog(shader) ?? 'shader compile error')
-    }
-    return shader
-  }
-
-  const program = gl.createProgram()
-  if (!program) throw new Error('program creation failed')
-  const vs = compile(gl.VERTEX_SHADER, vertexSrc)
-  const fs = compile(gl.FRAGMENT_SHADER, fragmentSrc)
-  gl.attachShader(program, vs)
-  gl.attachShader(program, fs)
-  gl.linkProgram(program)
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error(gl.getProgramInfoLog(program) ?? 'program link error')
-  }
-  gl.useProgram(program)
-
-  const positionBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(
-    gl.ARRAY_BUFFER,
-    new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
-    gl.STATIC_DRAW,
-  )
-  const aPosition = gl.getAttribLocation(program, 'a_position')
-  gl.enableVertexAttribArray(aPosition)
-  gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0)
-
-  const texCoordBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer)
-  gl.bufferData(
-    gl.ARRAY_BUFFER,
-    new Float32Array([0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0]),
-    gl.STATIC_DRAW,
-  )
-  const aTexCoord = gl.getAttribLocation(program, 'a_texCoord')
-  gl.enableVertexAttribArray(aTexCoord)
-  gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, 0, 0)
-
-  const texture = gl.createTexture()
-  gl.activeTexture(gl.TEXTURE0)
-  gl.bindTexture(gl.TEXTURE_2D, texture)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-
-  const uTexture = gl.getUniformLocation(program, 'u_texture')
-  const uBrightness = gl.getUniformLocation(program, 'u_brightness')
-  const uContrast = gl.getUniformLocation(program, 'u_contrast')
-  const uSaturation = gl.getUniformLocation(program, 'u_saturation')
-  const uTint = gl.getUniformLocation(program, 'u_tint')
-  gl.uniform1i(uTexture, 0)
-
-  const draw = (adjust: FilterAdjustments) => {
-    if (video.videoWidth === 0 || video.videoHeight === 0) return
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      gl.viewport(0, 0, canvas.width, canvas.height)
-    }
-
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video)
-
-    gl.uniform1f(uBrightness, adjust.brightness)
-    gl.uniform1f(uContrast, adjust.contrast)
-    gl.uniform1f(uSaturation, adjust.saturation)
-    gl.uniform3fv(uTint, adjust.tint)
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6)
-  }
-
-  const dispose = () => {
-    gl.deleteTexture(texture)
-    gl.deleteBuffer(positionBuffer)
-    gl.deleteBuffer(texCoordBuffer)
-    gl.deleteProgram(program)
-  }
-
-  return { draw, dispose }
-}
-
 function App() {
   const [tab, setTab] = useState<Tab>('tryon')
 
   return (
-    <div className="shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">AI ビジュアルエディター (デモ)</p>
-          <h1>3つのAI機能をまとめた Webデモ</h1>
+    <div className="max-w-[1200px] mx-auto flex flex-col gap-6 px-[22px] pt-[28px] pb-[56px]">
+      <header
+        className="flex items-end justify-between gap-3 px-[22px] py-[18px] rounded-[18px] border border-white/10 shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
+        style={{
+          background:
+            'linear-gradient(135deg, rgba(98, 121, 255, 0.18), rgba(87, 214, 255, 0.12)), rgba(11, 17, 40, 0.9)',
+        }}
+      >
+        <div className="space-y-1">
+          <p className="text-[12px] uppercase tracking-[0.08em] text-[#9ccfff] m-0">AI ビジュアルエディター (デモ)</p>
+          <h1 className="text-[24px] font-bold m-0 text-white">3つのAI機能をまとめた Webデモ</h1>
         </div>
-        <div className="tab-row">
-          <button className={`tab ${tab === 'tryon' ? 'tab--active' : ''}`} onClick={() => setTab('tryon')}>
+        <div className="flex gap-2">
+          <button
+            className={`px-[14px] py-[10px] rounded-[10px] border text-[14px] font-semibold transition ${
+              tab === 'tryon'
+                ? 'border-[#8bdcff] bg-[rgba(139,220,255,0.16)] -translate-y-px'
+                : 'border-white/10 bg-white/5'
+            }`}
+            onClick={() => setTab('tryon')}
+          >
             AI試着
           </button>
-          <button className={`tab ${tab === 'plush' ? 'tab--active' : ''}`} onClick={() => setTab('plush')}>
+          <button
+            className={`px-[14px] py-[10px] rounded-[10px] border text-[14px] font-semibold transition ${
+              tab === 'plush'
+                ? 'border-[#8bdcff] bg-[rgba(139,220,255,0.16)] -translate-y-px'
+                : 'border-white/10 bg-white/5'
+            }`}
+            onClick={() => setTab('plush')}
+          >
             ぬいぐるみ制作
           </button>
-          <button className={`tab ${tab === 'filters' ? 'tab--active' : ''}`} onClick={() => setTab('filters')}>
-            顔フィルター
+          <button
+            className={`px-[14px] py-[10px] rounded-[10px] border text-[14px] font-semibold transition ${
+              tab === 'plush-change'
+                ? 'border-[#8bdcff] bg-[rgba(139,220,255,0.16)] -translate-y-px'
+                : 'border-white/10 bg-white/5'
+            }`}
+            onClick={() => setTab('plush-change')}
+          >
+            ぬいぐるみチェンジ
           </button>
         </div>
       </header>
 
       {tab === 'tryon' && <TryOnModule />}
       {tab === 'plush' && <PlushModule />}
-      {tab === 'filters' && <LiveFiltersModule />}
+      {tab === 'plush-change' && <PlushChangeModule />}
 
     </div>
   )

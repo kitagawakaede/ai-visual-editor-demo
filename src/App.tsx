@@ -1,3 +1,5 @@
+// @ts-ignore
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.0'
 import { useEffect, useRef, useState } from 'react'
 
 type Tab = 'tryon' | 'plush' | 'plush-change'
@@ -6,9 +8,11 @@ const NANO_URL =
   import.meta.env.VITE_NANO_BANANA_URL ??
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 const NANO_KEY = import.meta.env.VITE_NANO_BANANA_API_KEY ?? ''
-const WHISPER_URL =
-  import.meta.env.VITE_WHISPER_URL ?? 'https://api.openai.com/v1/audio/transcriptions'
+const WHISPER_URL = import.meta.env.VITE_WHISPER_URL ?? 'https://api.openai.com/v1/audio/transcriptions'
 const WHISPER_KEY = import.meta.env.VITE_WHISPER_API_KEY ?? ''
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? ''
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ?? ''
+const SUPABASE_BUCKET = 'qr-images'
 
 const defaultToyPrompt =
   '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服と同一の外観をぬいぐるみに着せること。服の素材・質感・構造・色・模様を人物の服と完全に一致させ、不足している箇所のみ補完して生成せよ。最終的に服転写が正しく行われた1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
@@ -17,8 +21,16 @@ const tryOnPromptBase =
   '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服の素材・質感・構造・色・模様を保持したまま、指示された変更のみを反映せよ。素材や質感を改変することを禁止し、不足箇所のみを補完して生成せよ。最終的に1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
 
 const plushChangePromptBase =
-  '入力画像の人間の顔と体、および人間のプロポーションを破棄し、参照ぬいぐるみ画像の形状・質感・材質に完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止せよ。人間の顔や体型を丸くディフォルメされたぬいぐるみ体型に置き換え、服のテクスチャと色は元画像のまま保持して形状のみをぬいぐるみ体型にフィットさせよ。髪や肌の質感もぬいぐるみ素材に置き換えよ。入力画像に写っていた人間は最終画像に一切表示しないこと。最終的に1枚の画像のみを生成し、Base64文字列のみを返せ。'
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、フェルトや起毛布などのぬいぐるみ素材に置き換えること。人間の髪の色および髪型は重要な参照情報として扱い、色味・明度・系統を忠実に再現しつつ、人間構造を保持せず参照ぬいぐるみの造形ルールに従って簡略化・立体化し、前髪・分け目・長さ・ボリュームなどの特徴をぬいぐるみ的解釈で再構成し、毛ではなく布やフェルトの縫い付けパーツとして表現する。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に参照ぬいぐるみと同一世界観・材質感・造形ルールを持つ完全なぬいぐるみキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
+const plushChangePromptWoolFelting =
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、羊毛フェルト特有の繊維感・起毛感・手作業感のある素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・明度・系統を忠実に再現しつつ、羊毛フェルトを盛り上げて成形した立体的な髪パーツとして表現し、毛束の厚み・丸み・ボリューム感が分かる造形とする。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に羊毛フェルト製ぬいぐるみとして一貫した世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
+
+const plushChangePromptPixelArt =
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質をドット絵表現として完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置をドット単位で厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型はドット絵として表現された丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄を保持しつつ、ドット絵として簡略化されたテクスチャで表現する。髪・肌・顔の質感はすべて人間的要素を排除し、低解像度ピクセルアート特有の階調・色数制限・ドット感で表現すること。人間の髪の色および髪型は重要な参照情報として扱い、色味と特徴を保持したままドット絵として再構成し、立体感ではなくピクセル配置によって髪型を表現する。背景も人物と同一のドット絵スタイルで統一し、写実的表現や高解像度表現を禁止する。最終的に人物と背景が完全に統一されたドット絵世界観のぬいぐるみキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
+
+const plushChangePromptFlatHair =
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、一般的な布製ぬいぐるみ素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・系統は保持しつつ、立体的に盛り上げず平面的に縫い付けられた布パーツやプリント表現として髪型を再構成する。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に量産型の一般的なぬいぐるみとして自然な世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 const videoConstraints: MediaStreamConstraints['video'] = {
   width: { ideal: 640 },
   height: { ideal: 360 },
@@ -74,6 +86,77 @@ async function transcribeWithWhisper(audioBlob: Blob): Promise<string> {
 }
 
 type NanoResponse = { url: string; base64?: string }
+
+const MAX_QR_PAYLOAD = 1500
+
+async function generateQrDataUrl(text: string): Promise<string> {
+  if (text.length > MAX_QR_PAYLOAD) {
+    throw new Error('QR用データが長すぎます（URLを短縮する必要があります）')
+  }
+  // @ts-ignore external import via CDN
+  const mod = (await import(/* @vite-ignore */ 'https://esm.sh/qrcode@1.5.3')) as any
+  const toDataURL = mod?.toDataURL ?? mod?.default?.toDataURL
+  if (!toDataURL) throw new Error('QRモジュールの読み込みに失敗しました')
+  return toDataURL(text, { margin: 1, width: 180 })
+}
+
+async function compressImage(blob: Blob, maxSize = 960, quality = 0.72): Promise<Blob> {
+  const imgUrl = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = () => reject(new Error('画像の読み込みに失敗しました'))
+      image.src = imgUrl
+    })
+    const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+    const width = Math.max(1, Math.round(img.width * scale))
+    const height = Math.max(1, Math.round(img.height * scale))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas not supported')
+    ctx.drawImage(img, 0, 0, width, height)
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => {
+          if (b) resolve(b)
+          else reject(new Error('画像の圧縮に失敗しました'))
+        },
+        'image/jpeg',
+        quality,
+      )
+    })
+  } finally {
+    URL.revokeObjectURL(imgUrl)
+  }
+}
+
+const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null
+
+async function uploadToSupabase(blob: Blob, prefix: string, opts?: { compress?: boolean }): Promise<string> {
+  if (!supabase) throw new Error('Supabase未設定です')
+  const processedBlob = opts?.compress ? await compressImage(blob) : blob
+  const path = `${prefix}/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`
+  const upload = async () =>
+    supabase.storage.from(SUPABASE_BUCKET).upload(path, processedBlob, {
+      upsert: true,
+      contentType: processedBlob.type || 'image/jpeg',
+    })
+  let { error } = await upload()
+  if (error && error.message?.toLowerCase().includes('bucket')) {
+    await supabase.storage.createBucket(SUPABASE_BUCKET, { public: true })
+    const retry = await upload()
+    error = retry.error
+  }
+  if (error) throw error
+  const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(path)
+  if (!data?.publicUrl) throw new Error('public URL の取得に失敗しました')
+  return data.publicUrl
+}
 
 function isValidBase64Image(base64: string): boolean {
   try {
@@ -501,6 +584,7 @@ function PlushModule() {
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const [generatedBase64, setGeneratedBase64] = useState<string | null>(null)
+  const [generatedQr, setGeneratedQr] = useState<string | null>(null)
   const [plushCorrupted, setPlushCorrupted] = useState(false)
   const [plushServerError, setPlushServerError] = useState(false)
   const [status, setStatus] = useState('ぬいぐるみと一緒に撮影してください')
@@ -529,6 +613,7 @@ function PlushModule() {
   const handleCapture = async () => {
     if (!videoRef.current) return
     setStatus('撮影中...')
+    setGeneratedQr(null)
     try {
       const shot = await captureStill(videoRef.current)
       setCapturedBlob(shot.blob)
@@ -546,6 +631,7 @@ function PlushModule() {
     }
     setGeneratedUrl(null)
     setGeneratedBase64(null)
+    setGeneratedQr(null)
     setPlushCorrupted(false)
     setPlushServerError(false)
     setIsLoading(true)
@@ -555,6 +641,11 @@ function PlushModule() {
       if (result.base64 && isValidBase64Image(result.base64)) {
         setGeneratedBase64(result.base64)
         setGeneratedUrl(result.url)
+        const blob = await base64ToBlob(result.base64, 'image/jpeg')
+        uploadToSupabase(blob, 'plush', { compress: true })
+          .then((url) => generateQrDataUrl(url))
+          .then(setGeneratedQr)
+          .catch((err) => logError('plush-qr', err))
         setStatus('ぬいぐるみお着替え完了')
       } else if (result.base64 && !isValidBase64Image(result.base64)) {
         setPlushCorrupted(true)
@@ -562,6 +653,12 @@ function PlushModule() {
         logError('plush-invalid-base64', result.base64)
       } else {
         setGeneratedUrl(result.url)
+        fetch(result.url)
+          .then((res) => res.blob())
+          .then((b) => uploadToSupabase(b, 'plush', { compress: true }))
+          .then((url) => generateQrDataUrl(url))
+          .then(setGeneratedQr)
+          .catch((err) => logError('plush-qr', err))
         setStatus('ぬいぐるみお着替え完了')
       }
     } catch (err) {
@@ -585,7 +682,7 @@ function PlushModule() {
     try {
       let blob: Blob | null = null
       if (generatedBase64) {
-        blob = await base64ToBlob(generatedBase64)
+        blob = await base64ToBlob(generatedBase64, 'image/jpeg')
       } else if (generatedUrl) {
         blob = await (await fetch(generatedUrl)).blob()
       }
@@ -598,6 +695,11 @@ function PlushModule() {
       if (result.base64 && isValidBase64Image(result.base64)) {
         setGeneratedUrl(result.url)
         setGeneratedBase64(result.base64)
+        const b = await base64ToBlob(result.base64, 'image/jpeg')
+        uploadToSupabase(b, 'plush', { compress: true })
+          .then((url) => generateQrDataUrl(url))
+          .then(setGeneratedQr)
+          .catch((err) => logError('plush-qr', err))
         setPlushCorrupted(false)
         setPlushServerError(false)
         setStatus('不足部分を修正しました')
@@ -706,6 +808,9 @@ function PlushModule() {
                 ×
               </button>
               <img className="max-w-full max-h-full object-contain" src={generatedUrl} alt="nano banana result" />
+              {generatedQr && (
+                <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={generatedQr} alt="QRコード" />
+              )}
             </div>
           )}
         </div>
@@ -739,26 +844,29 @@ function PlushModule() {
   )
 }
 
-type PlushOption = { id: string; label: string; description: string; image: string }
+type PlushOption = { id: string; label: string; description: string; image: string; prompt: string }
 
 const plushOptions: PlushOption[] = [
   {
     id: 'plushA',
     label: 'ぬいぐるみA',
     description: '丸みのある可愛いシルエットのぬいぐるみタイプ',
-    image: new URL('./assets/スクリーンショット 2025-12-06 14.52.01.png', import.meta.url).href,
+    image: new URL('./assets/スクリーンショット 2025-12-13 16.03.58.png', import.meta.url).href,
+    prompt: plushChangePromptWoolFelting,
   },
   {
     id: 'plushB',
     label: 'ぬいぐるみB',
     description: '細部がはっきりしたフォルムのぬいぐるみタイプ',
-    image: new URL('./assets/スクリーンショット 2025-12-06 14.52.15.png', import.meta.url).href,
+    image: new URL('./assets/スクリーンショット 2025-12-13 12.36.50.png', import.meta.url).href,
+    prompt: plushChangePromptPixelArt,
   },
   {
     id: 'plushC',
     label: 'ぬいぐるみC',
     description: 'ふんわり質感のディフォルメぬいぐるみタイプ',
-    image: new URL('./assets/スクリーンショット 2025-12-06 14.52.28.png', import.meta.url).href,
+    image: new URL('./assets/スクリーンショット 2025-12-13 12.05.19.png', import.meta.url).href,
+    prompt: plushChangePromptFlatHair,
   },
 ]
 
@@ -768,6 +876,7 @@ function PlushChangeModule() {
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
+  const [resultQr, setResultQr] = useState<string | null>(null)
   const [selected, setSelected] = useState<PlushOption>(plushOptions[0])
   const [isCorrupted, setIsCorrupted] = useState(false)
   const [serverError, setServerError] = useState(false)
@@ -800,6 +909,7 @@ function PlushChangeModule() {
     setIsCorrupted(false)
     setServerError(false)
     setResultUrl(null)
+    setResultQr(null)
     setStatus('撮影中...')
     try {
       const shot = await captureStill(videoRef.current)
@@ -812,7 +922,7 @@ function PlushChangeModule() {
   }
 
   const buildPrompt = (option: PlushOption) =>
-    `${plushChangePromptBase} 選択したタイプ: ${option.label}。特徴: ${option.description}。`
+    `${option.prompt || plushChangePromptBase} 選択したタイプ: ${option.label}。特徴: ${option.description}。`
 
   const getRefBlob = async (option: PlushOption) => {
     if (refCache.current[option.id]) return refCache.current[option.id]
@@ -837,6 +947,11 @@ function PlushChangeModule() {
       const result = await requestNanoBanana(buildPrompt(selected), capturedBlob, refBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
         setResultUrl(result.url)
+        const blob = await base64ToBlob(result.base64, 'image/jpeg')
+        uploadToSupabase(blob, 'plush-change', { compress: true })
+          .then((url) => generateQrDataUrl(url))
+          .then(setResultQr)
+          .catch((err) => logError('plush-change-qr', err))
         setStatus('ぬいぐるみ変身完了')
       } else if (result.base64 && !isValidBase64Image(result.base64)) {
         setIsCorrupted(true)
@@ -844,6 +959,12 @@ function PlushChangeModule() {
         logError('plush-change-invalid-base64', result.base64)
       } else {
         setResultUrl(result.url)
+        fetch(result.url)
+          .then((res) => res.blob())
+          .then((b) => uploadToSupabase(b, 'plush-change', { compress: true }))
+          .then((url) => generateQrDataUrl(url))
+          .then(setResultQr)
+          .catch((err) => logError('plush-change-qr', err))
         setStatus('ぬいぐるみ変身完了')
       }
     } catch (err) {
@@ -930,12 +1051,16 @@ function PlushChangeModule() {
                   setCapturedUrl(null)
                   setIsCorrupted(false)
                   setServerError(false)
+                  setResultQr(null)
                 }}
                 aria-label="close result"
               >
                 ×
               </button>
               <img className="max-w-full max-h-full object-contain" src={resultUrl} alt="plush morph result" />
+              {resultQr && (
+                <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={resultQr} alt="QRコード" />
+              )}
             </div>
           )}
         </div>
@@ -950,7 +1075,7 @@ function PlushChangeModule() {
                 }`}
                 onClick={() => setSelected(opt)}
               >
-                <img className="w-full rounded-[10px] object-cover" src={opt.image} alt={opt.label} />
+                <img className="w-full aspect-square rounded-[10px] object-cover" src={opt.image} alt={opt.label} />
                 <div className="text-[#e8edff] font-bold text-[14px]">{opt.label}</div>
               </button>
             ))}

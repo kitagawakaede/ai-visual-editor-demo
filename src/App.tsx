@@ -11,7 +11,7 @@ const NANO_KEY = import.meta.env.VITE_NANO_BANANA_API_KEY ?? ''
 const WHISPER_URL = import.meta.env.VITE_WHISPER_URL ?? 'https://api.openai.com/v1/audio/transcriptions'
 const WHISPER_KEY = import.meta.env.VITE_WHISPER_API_KEY ?? ''
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? ''
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ?? ''
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 const SUPABASE_BUCKET = 'qr-images'
 
 const defaultToyPrompt =
@@ -152,7 +152,11 @@ async function uploadToSupabase(blob: Blob, prefix: string, opts?: { compress?: 
     const retry = await upload()
     error = retry.error
   }
-  if (error) throw error
+  if (error) {
+    const detail =
+      error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error) : String(error)
+    throw new Error(detail)
+  }
   const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(path)
   if (!data?.publicUrl) throw new Error('public URL の取得に失敗しました')
   return data.publicUrl
@@ -171,7 +175,12 @@ function isValidBase64Image(base64: string): boolean {
 function logError(label: string, error: unknown) {
   const payload = {
     label,
-    error: error instanceof Error ? error.message : String(error),
+    error:
+      error instanceof Error
+        ? error.message
+        : typeof error === 'object'
+          ? JSON.stringify(error)
+          : String(error),
     ts: new Date().toISOString(),
   }
   console.error('app-error', payload)

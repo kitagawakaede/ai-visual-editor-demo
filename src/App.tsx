@@ -15,22 +15,22 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 const SUPABASE_BUCKET = 'qr-images'
 
 const defaultToyPrompt =
-  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服と同一の外観をぬいぐるみに着せること。服の素材・質感・構造・色・模様を人物の服と完全に一致させ、不足している箇所のみ補完して生成せよ。メガネやアクセサリー類は、入力画像のデザイン・形状・フレームの細部構造を完全に保持し、一切の簡略化を禁止せよ。ぬいぐるみのサイズに合わせて正確にスケール調整を行い、質感は過度な反射を抑えた高品質な樹脂やマットな硬質素材として再現し、ぬいぐるみの顔や体に物理的に固定されているように自然な影を伴って装着させること。最終的に服転写が正しく行われた1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
+  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服と同一の外観をぬいぐるみに着せること。服の素材・質感・構造・色・模様を人物の服と完全に一致させ、不足している箇所のみ補完して生成せよ。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状・フレームの細部構造を完全に保持し、一切の簡略化を禁止せよ。ぬいぐるみのサイズに合わせて正確にスケール調整を行い、質感は過度な反射を抑えた高品質な樹脂やマットな硬質素材として再現し、ぬいぐるみの顔や体に物理的に固定されているように自然な影を伴って装着させること。最終的に服転写が正しく行われた1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
 
 const tryOnPromptBase =
-  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服の素材・質感・構造・色・模様を保持したまま、指示された変更のみを反映せよ。素材や質感を改変することを禁止し、不足箇所のみを補完して生成せよ。メガネやアクセサリー類は、元の材質感・金属の光沢・レンズの透明度、およびデザインの細部までを完全に維持せよ。ぬいぐるみのプロポーションに合わせて形状を歪ませることなく、後付けの精密なパーツとして違和感なく装着させ、現実のアイテムとしてのアイデンティティを100%保持したまま生成すること。最終的に1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
+  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服の素材・質感・構造・色・模様を保持したまま、指示された変更のみを反映せよ。素材や質感を改変することを禁止し、不足箇所のみを補完して生成せよ。メガネやアクセサリー類を着用している場合には、元の材質感・金属の光沢・レンズの透明度、およびデザインの細部までを完全に維持せよ。ぬいぐるみのプロポーションに合わせて形状を歪ませることなく、後付けの精密なパーツとして違和感なく装着させ、現実のアイテムとしてのアイデンティティを100%保持したまま生成すること。最終的に1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
 
 const plushChangePromptBase =
-  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、フェルトや起毛布などのぬいぐるみ素材に置き換えること。人間の髪の色および髪型は重要な参照情報として扱い、色味・明度・系統を忠実に再現しつつ、人間構造を保持せず参照ぬいぐるみの造形ルールに従って簡略化・立体化し、前髪・分け目・長さ・ボリュームなどの特徴をぬいぐるみ적解釈で再構成し、毛ではなく布やフェルトの縫い付けパーツとして表現する。メガネやアクセサリー類は、入力画像のデザイン・形状・フレームの細部構造を完全に保持し、一切の簡略化を禁止せよ。ぬいぐるみのサイズに合わせて正確にスケール調整を行い、質感は過度な反射を抑えた高品質な樹脂やマットな硬質素材として再現し、ぬいぐるみの顔や体に物理的に固定されているように自然な影を伴って装着させること。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に参照ぬいぐるみと同一世界観・材質感・造形ルールを持つ完全なぬいぐるみキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、フェルトや起毛布などのぬいぐるみ素材に置き換えること。人間の髪の色および髪型は重要な参照情報として扱い、色味・明度・系統を忠実に再現しつつ、人間構造を保持せず参照ぬいぐるみの造形ルールに従って簡略化・立体化し、前髪・分け目・長さ・ボリュームなどの特徴をぬいぐるみ적解釈で再構成し、毛ではなく布やフェルトの縫い付けパーツとして表現する。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状・フレームの細部構造を完全に保持し、一切の簡略化を禁止せよ。ぬいぐるみのサイズに合わせて正確にスケール調整を行い、質感は過度な反射を抑えた高品質な樹脂やマットな硬質素材として再現し、ぬいぐるみの顔や体に物理的に固定されているように自然な影を伴って装着させること。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に参照ぬいぐるみと同一世界観・材質感・造形ルールを持つ完全なぬいぐるみキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
   const plushChangePromptWoolFelting =
-  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、羊毛フェルト特有の繊維感・起毛感・手作業感のある素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・明度・系統を忠実に再現しつつ、羊毛フェルトを盛り上げて成形した立体的な髪パーツとして表現し、毛束の厚み・丸み・ボリューム感が分かる造形とする。メガネやアクセサリー類は、入力画像のデザイン・形状を完全に再現せよ。素材は羊毛フェルトの世界観に合わせつつも、形が崩れることを厳格に禁止し、細いワイヤーワークや樹脂コーティングされたパーツのような精密なハンドメイドパーツとして表現すること。フェルトによる簡略化を禁止し、細部まで実物と同一のディテールを保持して装着させよ。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に羊毛フェルト製ぬいぐるみとして一貫した世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、羊毛フェルト特有の繊維感・起毛感・手作業感のある素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・明度・系統を忠実に再現しつつ、羊毛フェルトを盛り上げて成形した立体的な髪パーツとして表現し、毛束の厚み・丸み・ボリューム感が分かる造形とする。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状を完全に再現せよ。素材は羊毛フェルトの世界観に合わせつつも、形が崩れることを厳格に禁止し、細いワイヤーワークや樹脂コーティングされたパーツのような精密なハンドメイドパーツとして表現すること。フェルトによる簡略化を禁止し、細部まで実物と同一のディテールを保持して装着させよ。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に羊毛フェルト製ぬいぐるみとして一貫した世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
 const plushChangePromptPixelArt =
-  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質をドット絵表現として完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置をドット単位で厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型はドット絵として表現された丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄を保持しつつ、ドット絵として簡略化されたテクスチャで表現する。髪・肌・顔の質感はすべて人間的要素を排除し、低解像度ピクセルアート特有の階調・色数制限・ドット感で表現すること。人間の髪の色および髪型は重要な参照情報として扱い、色味と特徴を保持したままドット絵として再構成し、立体感ではなくピクセル配置によって髪型を表現する。メガネやアクセサリー類は、実物のデザイン・色・特徴的な形状をドット絵の制約の中で限界まで精密に再現せよ。単なる記号的な表現を禁止し、フレームの厚みやレンズの形、アクセサリーの固有のデザインが識別できるレベルでピクセルを配置し、キャラクターの顔や体に正確にフィットさせて描画すること。背景も人物と同一のドット絵スタイルで統一し、写実的表現や高解像度表現を禁止する。最終的に人物と背景が完全に統一されたドット絵世界観のぬいぐるみキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質をドット絵表現として完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置をドット単位で厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型はドット絵として表現された丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄を保持しつつ、ドット絵として簡略化されたテクスチャで表現する。髪・肌・顔の質感はすべて人間的要素を排除し、低解像度ピクセルアート特有の階調・色数制限・ドット感で表現すること。人間の髪の色および髪型は重要な参照情報として扱い、色味と特徴を保持したままドット絵として再構成し、立体感ではなくピクセル配置によって髪型を表現する。メガネやアクセサリー類を着用している場合には、実物のデザイン・色・特徴的な形状をドット絵の制約の中で限界まで精密に再現せよ。単なる記号的な表現を禁止し、フレームの厚みやレンズの形、アクセサリーの固有のデザインが識別できるレベルでピクセルを配置し、キャラクターの顔や体に正確にフィットさせて描画すること。背景も人物と同一のドット絵スタイルで統一し、写実的表現や高解像度表現を禁止する。最終的に人物と背景が完全に統一されたドット絵世界観のぬいぐるみキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
 const plushChangePromptFlatHair =
-  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、一般的な布製ぬいぐるみ素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・系統は保持しつつ、立体的に盛り上げず平面的に縫い付けられた布パーツやプリント表現として髪型を再構成する。メガネやアクセサリー類は、入力画像のデザイン・形状を完全に保持し、簡略化された刺繍表現ではなく、独立した硬質パーツや高品質な別布パーツとして立体的に再現せよ。フレームの細さや装飾の細部までを維持し、ぬいぐるみの顔の曲線に合わせて正確にフィットさせ、後付けのオプションパーツのような高い完成度で装着させること。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に量産型の一般的なぬいぐるみとして自然な世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、一般的な布製ぬいぐるみ素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・系統は保持しつつ、立体的に盛り上げず平面的に縫い付けられた布パーツやプリント表現として髪型を再構成する。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状を完全に保持し、簡略化された刺繍表現ではなく、独立した硬質パーツや高品質な別布パーツとして立体的に再現せよ。フレームの細さや装飾の細部までを維持し、ぬいぐるみの顔の曲線に合わせて正確にフィットさせ、後付けのオプションパーツのような高い完成度で装着させること。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に量産型の一般的なぬいぐるみとして自然な世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
 const omikujiImages = Object.values(
   import.meta.glob('./assets/omikuji/*.png', { eager: true, import: 'default' }) as Record<string, string>,
@@ -339,35 +339,46 @@ function isLikelyBase64(text: string) {
 function useOmikujiOverlay() {
   const [omikujiUrl, setOmikujiUrl] = useState<string | null>(null)
   const [omikujiVisible, setOmikujiVisible] = useState(false)
+  const [omikujiKey, setOmikujiKey] = useState(0)
   const timerRef = useRef<number | null>(null)
-  const fadeTimerRef = useRef<number | null>(null)
+  const loadTokenRef = useRef(0)
 
   const clearTimers = useCallback(() => {
     if (timerRef.current) {
       window.clearTimeout(timerRef.current)
       timerRef.current = null
     }
-    if (fadeTimerRef.current) {
-      window.clearTimeout(fadeTimerRef.current)
-      fadeTimerRef.current = null
-    }
   }, [])
 
   const triggerOmikuji = useCallback(() => {
     if (!omikujiImages.length) return
     clearTimers()
+    loadTokenRef.current += 1
     setOmikujiVisible(false)
     setOmikujiUrl(null)
+    const currentToken = loadTokenRef.current
     timerRef.current = window.setTimeout(() => {
       const pick = omikujiImages[Math.floor(Math.random() * omikujiImages.length)]
-      setOmikujiVisible(false)
-      setOmikujiUrl(pick)
-      fadeTimerRef.current = window.setTimeout(() => setOmikujiVisible(true), 20)
+      const loader = new Image()
+      loader.onload = () => {
+        if (loadTokenRef.current !== currentToken) return
+        setOmikujiKey(Date.now())
+        setOmikujiUrl(pick)
+        setOmikujiVisible(true)
+      }
+      loader.onerror = () => {
+        if (loadTokenRef.current !== currentToken) return
+        setOmikujiKey(Date.now())
+        setOmikujiUrl(pick)
+        setOmikujiVisible(true)
+      }
+      loader.src = pick
     }, 3000)
   }, [clearTimers])
 
   const resetOmikuji = useCallback(() => {
     clearTimers()
+    loadTokenRef.current += 1
     setOmikujiVisible(false)
     setOmikujiUrl(null)
   }, [clearTimers])
@@ -378,13 +389,30 @@ function useOmikujiOverlay() {
     }
   }, [clearTimers])
 
-  return { omikujiUrl, omikujiVisible, triggerOmikuji, resetOmikuji }
+  return { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji }
 }
 
-function OmikujiOverlay({ url, visible, onClose }: { url: string | null; visible: boolean; onClose?: () => void }) {
+function OmikujiOverlay({
+  url,
+  visible,
+  fadeKey,
+  onClose,
+}: {
+  url: string | null
+  visible: boolean
+  fadeKey?: number
+  onClose?: () => void
+}) {
   if (!url) return null
   return (
-    <div className={`absolute inset-0 flex items-center justify-center z-20 transition-opacity duration-700 ${visible ? 'opacity-100' : 'opacity-0'}`}>
+    <div
+      key={fadeKey}
+      className="absolute inset-0 flex items-center justify-center z-20"
+      style={{
+        opacity: visible ? 1 : 0,
+        animation: visible ? 'omikujiFade 900ms ease forwards' : 'none',
+      }}
+    >
       {onClose && (
         <button
           className="absolute top-3 right-3 w-9 h-9 rounded-full border border-white/30 bg-[rgba(0,0,0,0.55)] text-white text-lg font-bold shadow-md"
@@ -419,7 +447,7 @@ function TryOnModule() {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const audioStreamRef = useRef<MediaStream | null>(null)
   const audioChunks = useRef<Blob[]>([])
-  const { omikujiUrl, omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
+  const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
     let active = true
@@ -566,7 +594,7 @@ function TryOnModule() {
             muted
             playsInline
           />
-          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} onClose={resetOmikuji} />
+          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
               生成中...
@@ -692,7 +720,7 @@ function PlushModule() {
   const [plushServerError, setPlushServerError] = useState(false)
   const [status, setStatus] = useState('ぬいぐるみと一緒に撮影してください')
   const [isLoading, setIsLoading] = useState(false)
-  const { omikujiUrl, omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
+  const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
     let active = true
@@ -859,7 +887,7 @@ function PlushModule() {
             muted
             playsInline
           />
-          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} onClose={resetOmikuji} />
+          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
               生成中...
@@ -991,7 +1019,7 @@ function PlushChangeModule() {
   const [status, setStatus] = useState('写真を撮影して、変身先のぬいぐるみを選んでください')
   const [isLoading, setIsLoading] = useState(false)
   const refCache = useRef<Record<string, Blob>>({})
-  const { omikujiUrl, omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
+  const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
     let active = true
@@ -1116,7 +1144,7 @@ function PlushChangeModule() {
             muted
             playsInline
           />
-          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} onClose={resetOmikuji} />
+          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
               生成中...

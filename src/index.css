@@ -33,3 +33,12 @@ p {
 a {
   color: inherit;
 }
+
+@keyframes omikujiFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

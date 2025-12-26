@@ -32,6 +32,11 @@ const plushChangePromptPixelArt =
 const plushChangePromptFlatHair =
   '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、一般的な布製ぬいぐるみ素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・系統は保持しつつ、立体的に盛り上げず平面的に縫い付けられた布パーツやプリント表現として髪型を再構成する。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状を完全に保持し、簡略化された刺繍表現ではなく、独立した硬質パーツや高品質な別布パーツとして立体的に再現せよ。フレームの細さや装飾の細部までを維持し、ぬいぐるみの顔の曲線に合わせて正確にフィットさせ、後付けのオプションパーツのような高い完成度で装着させること。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に量産型の一般的なぬいぐるみとして自然な世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
+const spBackground = new URL('./assets/UI/sp_bg.png', import.meta.url).href
+const wearLogo = new URL('./assets/UI/wear_am_i_logo-01 1.png', import.meta.url).href
+const tclLogo = new URL('./assets/UI/TCL_logo.png', import.meta.url).href
+const titleFrame = new URL('./assets/UI/Frame 2.png', import.meta.url).href
+
 const omikujiImages = Object.values(
   import.meta.glob('./assets/omikuji/*.png', { eager: true, import: 'default' }) as Record<string, string>,
 )
@@ -423,7 +428,7 @@ function OmikujiOverlay({
         </button>
       )}
       <img
-        className="max-w-[75%] max-h-[75%] object-contain rounded-[16px] border border-white/25 shadow-[0_10px_35px_rgba(0,0,0,0.35)]"
+        className="max-w-[92%] max-h-[92%] object-contain rounded-[16px]"
         src={url}
         alt="おみくじ"
       />
@@ -441,7 +446,7 @@ function TryOnModule() {
   const [editedQr, setEditedQr] = useState<string | null>(null)
   const [isCorrupted, setIsCorrupted] = useState(false)
   const [serverError, setServerError] = useState(false)
-  const [status, setStatus] = useState<string>('マイクで指示を録音 → 撮影 → お着替え')
+  const [status, setStatus] = useState<string>('マイク→撮影→お着替えの3ステップで試着を体験できます。')
   const [isRecording, setIsRecording] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -530,7 +535,7 @@ function TryOnModule() {
     setServerError(false)
     triggerOmikuji()
     setIsLoading(true)
-    setStatus('nano-banana に送信中...')
+    setStatus('変身中...')
     try {
       const combinedPrompt = [tryOnPromptBase, instruction.trim()].filter(Boolean).join(' ')
       const result = await requestNanoBanana(combinedPrompt, capturedBlob)
@@ -568,141 +573,140 @@ function TryOnModule() {
   }
 
   return (
-    <section className="rounded-[18px] p-[18px] bg-[rgba(10,13,28,0.92)] border border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.3)] space-y-4">
-      <header className="flex justify-between items-center gap-3 mb-3">
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-start justify-between gap-2.5">
         <div className="space-y-1">
-          <p className="text-[12px] uppercase tracking-[0.08em] text-[#9ccfff] m-0">AI試着</p>
-          <p className="text-sm text-[#9fa8c1] m-0">マイク→撮影→お着替えの3ステップで試着を体験できます。</p>
+          <p className="text-[10px] font-bold text-[#1f78c8]">AI試着</p>
+          <p className="text-[16px] font-extrabold leading-[1.3]">自分の洋服の色を変えてみよう！</p>
+          <p className="text-[10px] text-[#3b2b12]">マイク ▶︎ 撮影 ▶︎ お着替えの3ステップで試着を体験できます。</p>
         </div>
         <span
-          className={`px-3 py-2 rounded-full text-[12px] border ${
+          className={`border-2 text-[11px] font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap ${
             streamError
-              ? 'bg-[rgba(255,132,132,0.15)] text-[#ffc3c3] border-[rgba(255,132,132,0.35)]'
-              : 'bg-[rgba(82,246,169,0.18)] text-[#b1f2d5] border-[rgba(82,246,169,0.45)]'
+              ? 'border-[#7a1b1b] text-[#7a1b1b] bg-[rgba(255,150,150,0.22)]'
+              : 'border-[#358ae6] text-[#358ae6] bg-[rgba(53,138,230,0.25)]'
           }`}
         >
           {streamError ? 'カメラ許可が必要です' : 'カメラ準備OK'}
         </span>
-      </header>
+      </div>
 
-      <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
-        <div className="relative overflow-hidden rounded-[16px] bg-[#0b1024] min-h-[320px] aspect-[16/9]">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover rounded-[16px] bg-[#0d132d] z-0"
-            style={{ transform: 'scaleX(-1)' }}
-            muted
-            playsInline
+      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[360px] mx-auto">
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+          muted
+          playsInline
+        />
+        <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
+            変身中...
+          </div>
+        )}
+        {capturedUrl && !isLoading && !editedUrl && !isCorrupted && (
+          <img
+            className="absolute bottom-3 right-3 max-w-[160px] rounded-[10px] border border-white/40 shadow-md"
+            src={capturedUrl}
+            alt="capture"
           />
-          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
-              生成中...
-            </div>
-          )}
-          {capturedUrl && !isLoading && !editedUrl && !isCorrupted && (
-            <img
-              className="absolute bottom-3 right-3 max-w-[180px] rounded-[12px] border border-white/20 shadow-lg"
-              src={capturedUrl}
-              alt="capture"
-            />
-          )}
-          {isCorrupted && !isLoading && (
-            <div
-              className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]"
-              style={{ transform: 'scaleX(-1)' }}
-            >
-              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <button
-                className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
-                onClick={handleTryOn}
-                style={{ transform: 'scaleX(1)' }}
-              >
-                再生成する
-              </button>
-            </div>
-          )}
-          {serverError && !isLoading && (
-            <div
-              className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]"
-              style={{ transform: 'scaleX(-1)' }}
-            >
-              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <button
-                className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
-                onClick={handleTryOn}
-                style={{ transform: 'scaleX(1)' }}
-              >
-                再生成する
-              </button>
-            </div>
-          )}
-          {editedUrl && !isLoading && !isCorrupted && (
-            <div className="absolute inset-0 w-full h-full left-0 right-0 flex items-center justify-center bg-[rgba(5,7,18,0.4)] rounded-[16px]">
-              <button
-                className="absolute top-2 right-2 w-8 h-8 rounded-full border border-white/30 bg-[rgba(0,0,0,0.4)] text-white text-lg"
-                onClick={() => {
-                  setEditedUrl(null)
-                  setCapturedUrl(null)
-                  setIsCorrupted(false)
-                  setEditedQr(null)
-                }}
-                aria-label="close result"
-              >
-                ×
-              </button>
-              <img className="max-w-full max-h-full object-contain" src={editedUrl} alt="nano banana result" />
-              {editedQr && (
-                <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={editedQr} alt="QRコード" />
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
+        )}
+        {isCorrupted && !isLoading && (
+          <div
+            className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.6)] text-white"
+            style={{ transform: 'scaleX(-1)' }}
+          >
+            <p className="text-[12px] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
             <button
-              className={`border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition ${
-                isRecording ? 'bg-[rgba(255,166,48,0.2)] border-[rgba(255,166,48,0.5)]' : ''
-              }`}
-              onClick={toggleRecording}
-            >
-              {isRecording ? '録音停止' : 'マイク開始'}
-            </button>
-            <button
-              className="border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition"
-              onClick={handleCapture}
-            >
-              {capturedBlob ? '再撮影' : 'シャッター'}
-            </button>
-            <button
-              className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)] disabled:opacity-60"
+              className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
               onClick={handleTryOn}
-              disabled={isLoading}
+              style={{ transform: 'scaleX(1)' }}
             >
-              {isLoading ? '生成中...' : 'お着替え'}
+              再生成する
             </button>
           </div>
+        )}
+        {serverError && !isLoading && (
+          <div
+            className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.6)] text-white"
+            style={{ transform: 'scaleX(-1)' }}
+          >
+            <p className="text-[12px] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+            <button
+              className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
+              onClick={handleTryOn}
+              style={{ transform: 'scaleX(1)' }}
+            >
+              再生成する
+            </button>
+          </div>
+        )}
+        {editedUrl && !isLoading && !isCorrupted && (
+          <div className="absolute inset-0 w-full h-full left-0 right-0 flex items-center justify-center bg-[rgba(0,0,0,0.55)]">
+            <button
+              className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold"
+              onClick={() => {
+                setEditedUrl(null)
+                setCapturedUrl(null)
+                setIsCorrupted(false)
+                setEditedQr(null)
+              }}
+              aria-label="close result"
+            >
+              ×
+            </button>
+            <img className="max-w-full max-h-full object-contain" src={editedUrl} alt="nano banana result" />
+            {editedQr && (
+              <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={editedQr} alt="QRコード" />
+            )}
+          </div>
+        )}
+      </div>
 
-          <label className="flex flex-col gap-1 font-semibold text-[#dfe6ff]">
-            <span>音声で認識した指示</span>
-            <textarea
-              value={instruction}
-              onChange={(e) => setInstruction(e.target.value)}
-              placeholder="今着ているトップスを赤色にして"
-              rows={3}
-              className="w-full min-h-[96px] px-3 py-2 rounded-[12px] border border-white/10 bg-white/5 text-white text-[15px]"
-            />
-          </label>
-
-          <p className="text-[#cbd3ec] m-0 text-sm">{status}</p>
-          {!NANO_KEY && <p className="text-[#ffc9c9] m-0 text-[13px]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
-          {!WHISPER_KEY && (
-            <p className="text-[#ffc9c9] m-0 text-[13px]">
-              Whisper APIキー (VITE_WHISPER_API_KEY) が無い場合は手入力で試してください。
-            </p>
-          )}
+      <div className="bg-[#ffedab] rounded-[16px] p-2.5 flex flex-col gap-2 shadow-[0_8px_16px_rgba(0,0,0,0.15)]">
+        <div className="flex gap-2">
+          <button
+            className={`flex-1 rounded-full px-2.5 py-2 text-[12px] font-bold inline-flex items-center justify-center gap-1.5 text-[#2a1905] ${
+              isRecording ? 'bg-[#ffdf9a]' : 'bg-white'
+            }`}
+            onClick={toggleRecording}
+          >
+            {isRecording ? '録音停止' : 'マイク開始'}
+          </button>
+          <button
+            className="flex-1 rounded-full px-2.5 py-2 bg-[#111] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
+            onClick={handleCapture}
+          >
+            {capturedBlob ? '再撮影' : 'シャッター'}
+          </button>
+          <button
+            className="flex-1 rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+            onClick={handleTryOn}
+            disabled={isLoading}
+          >
+            {isLoading ? '変身中...' : 'お着替え'}
+          </button>
         </div>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-[12px] font-bold">音声で認識した指示</span>
+          <textarea
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            placeholder="今着ているトップスを赤色にして"
+            rows={3}
+            className="w-full rounded-[10px] p-2 text-[12px] bg-white text-[#2a1905]"
+          />
+        </label>
+
+        <p className="text-[11px] text-[#3b2b12]">{status}</p>
+        {!NANO_KEY && <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
+        {!WHISPER_KEY && (
+          <p className="text-[11px] text-[#8c2b2b]">
+            Whisper APIキー (VITE_WHISPER_API_KEY) が無い場合は手入力で試してください。
+          </p>
+        )}
       </div>
     </section>
   )
@@ -769,7 +773,7 @@ function PlushModule() {
     setPlushServerError(false)
     triggerOmikuji()
     setIsLoading(true)
-    setStatus('nano-banana で生成中...')
+    setStatus('変身中...')
     try {
       const result = await requestNanoBanana(defaultToyPrompt, capturedBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
@@ -860,121 +864,118 @@ function PlushModule() {
   }
 
   return (
-    <section className="rounded-[18px] p-[18px] bg-[rgba(10,13,28,0.92)] border border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.3)] space-y-4">
-      <header className="flex justify-between items-center gap-3 mb-3">
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-start justify-between gap-2.5">
         <div className="space-y-1">
-          <p className="text-[12px] uppercase tracking-[0.08em] text-[#9ccfff] m-0">ぬいぐるみ制作</p>
-          <h2 className="text-xl font-bold text-white m-0">一緒に写った服をぬいぐるみに転写</h2>
-          <p className="text-sm text-[#9fa8c1] m-0">シャッターボタン → nano-banana で服をコピーします。</p>
+          <p className="text-[10px] font-bold text-[#1f78c8]">ぬいぐるみ試着</p>
+          <p className="text-[15px] font-extrabold leading-[1.3]">ぬいぐるみに、自分と同じ服を着せよう！</p>
+          <p className="text-[10px] text-[#3b2b12]">シャッターボタン ▶︎ 服をコピーします。</p>
         </div>
         <span
-          className={`px-3 py-2 rounded-full text-[12px] border ${
+          className={`border-2 text-[11px] font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap ${
             streamError
-              ? 'bg-[rgba(255,132,132,0.15)] text-[#ffc3c3] border-[rgba(255,132,132,0.35)]'
-              : 'bg-[rgba(82,246,169,0.18)] text-[#b1f2d5] border-[rgba(82,246,169,0.45)]'
+              ? 'border-[#7a1b1b] text-[#7a1b1b] bg-[rgba(255,150,150,0.22)]'
+              : 'border-[#358ae6] text-[#358ae6] bg-[rgba(53,138,230,0.25)]'
           }`}
         >
           {streamError ? 'カメラ許可が必要です' : 'カメラ準備OK'}
         </span>
-      </header>
+      </div>
 
-      <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
-        <div className="relative overflow-hidden rounded-[16px] bg-[#0b1024] min-h-[320px] aspect-[16/9]">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover rounded-[16px] bg-[#0d132d]"
-            style={{ transform: 'scaleX(-1)' }}
-            muted
-            playsInline
+      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[360px] mx-auto">
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+          muted
+          playsInline
+        />
+        <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
+            変身中...
+          </div>
+        )}
+        {capturedUrl && !isLoading && !generatedUrl && (
+          <img
+            className="absolute bottom-3 right-3 max-w-[160px] rounded-[10px] border border-white/40 shadow-md"
+            src={capturedUrl}
+            alt="capture"
           />
-          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
-              生成中...
-            </div>
-          )}
-          {capturedUrl && !isLoading && !generatedUrl && (
-            <img
-              className="absolute bottom-3 right-3 max-w-[180px] rounded-[12px] border border-white/20 shadow-lg"
-              src={capturedUrl}
-              alt="capture"
-            />
-          )}
-          {plushCorrupted && !isLoading && (
-            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]">
-              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <div className="flex justify-center">
-                <button
-                  className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
-                  onClick={handleGenerate}
-                  disabled={isLoading}
-                >
-                  再生成する
-                </button>
-              </div>
-            </div>
-          )}
-          {plushServerError && !isLoading && (
-            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]">
-              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <div className="flex justify-center">
-                <button
-                  className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
-                  onClick={handleGenerate}
-                  disabled={isLoading}
-                >
-                  再生成する
-                </button>
-              </div>
-            </div>
-          )}
-          {generatedUrl && !isLoading && !plushCorrupted && (
-            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-[rgba(5,7,18,0.4)] rounded-[16px]">
-              <button
-                className="absolute top-2 right-2 w-8 h-8 rounded-full border border-white/30 bg-[rgba(0,0,0,0.4)] text-white text-lg"
-                onClick={() => {
-                  setGeneratedUrl(null)
-                  setGeneratedBase64(null)
-                  setCapturedUrl(null)
-                  setPlushCorrupted(false)
-                  setPlushServerError(false)
-                }}
-                aria-label="close result"
-              >
-                ×
-              </button>
-              <img className="max-w-full max-h-full object-contain" src={generatedUrl} alt="nano banana result" />
-              {generatedQr && (
-                <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={generatedQr} alt="QRコード" />
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            <button className="border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition" onClick={handleCapture}>
-              {capturedBlob ? '再撮影' : 'シャッター'}
-            </button>
+        )}
+        {plushCorrupted && !isLoading && (
+          <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.6)] text-white">
+            <p className="text-[12px] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
             <button
-              className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)] disabled:opacity-60"
-              disabled={isLoading}
+              className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
               onClick={handleGenerate}
+              disabled={isLoading}
             >
-              {isLoading ? '生成中...' : '生成する'}
-            </button>
-            <button
-              className="border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition disabled:opacity-60"
-              disabled={isLoading || !generatedUrl}
-              onClick={handleRegenerate}
-              title="不足部分を修正してもう一度"
-            >
-              不足部分を修正してもう一度 ✨
+              再生成する
             </button>
           </div>
-          <p className="text-[#cbd3ec] m-0 text-sm">{status}</p>
-          {!NANO_KEY && <p className="text-[#ffc9c9] m-0 text-[13px]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
+        )}
+        {plushServerError && !isLoading && (
+          <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.6)] text-white">
+            <p className="text-[12px] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+            <button
+              className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+              onClick={handleGenerate}
+              disabled={isLoading}
+            >
+              再生成する
+            </button>
+          </div>
+        )}
+        {generatedUrl && !isLoading && !plushCorrupted && (
+          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-[rgba(0,0,0,0.55)]">
+            <button
+              className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold"
+              onClick={() => {
+                setGeneratedUrl(null)
+                setGeneratedBase64(null)
+                setCapturedUrl(null)
+                setPlushCorrupted(false)
+                setPlushServerError(false)
+              }}
+              aria-label="close result"
+            >
+              ×
+            </button>
+            <img className="max-w-full max-h-full object-contain" src={generatedUrl} alt="nano banana result" />
+            {generatedQr && (
+              <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={generatedQr} alt="QRコード" />
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[#ffedab] rounded-[16px] p-2.5 flex flex-col gap-2 shadow-[0_8px_16px_rgba(0,0,0,0.15)]">
+        <div className="flex gap-2">
+          <button
+            className="flex-1 rounded-full px-2.5 py-2 bg-[#111] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
+            onClick={handleCapture}
+          >
+            {capturedBlob ? '再撮影' : 'シャッター'}
+          </button>
+          <button
+            className="flex-1 rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+            disabled={isLoading}
+            onClick={handleGenerate}
+          >
+            {isLoading ? '変身中...' : '変身'}
+          </button>
         </div>
+        <button
+          className="w-full rounded-full px-2.5 py-2 bg-white text-[#2a1905] text-[12px] font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+          disabled={isLoading || !generatedUrl}
+          onClick={handleRegenerate}
+          title="不足部分を修正してもう一度"
+        >
+          不足部分を修正してもう一度 ✨
+        </button>
+        <p className="text-[11px] text-[#3b2b12]">{status}</p>
+        {!NANO_KEY && <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
       </div>
     </section>
   )
@@ -1080,7 +1081,7 @@ function PlushChangeModule() {
     setResultUrl(null)
     triggerOmikuji()
     setIsLoading(true)
-    setStatus('nano-banana で変身中...')
+    setStatus('変身中...')
     try {
       const refBlob = await getRefBlob(selected)
       const result = await requestNanoBanana(buildPrompt(selected), capturedBlob, refBlob)
@@ -1118,124 +1119,121 @@ function PlushChangeModule() {
   const handleRetry = () => handleTransform()
 
   return (
-    <section className="rounded-[18px] p-[18px] bg-[rgba(10,13,28,0.92)] border border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.3)] space-y-4">
-      <header className="flex justify-between items-center gap-3 mb-3">
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-start justify-between gap-2.5">
         <div className="space-y-1">
-          <p className="text-[12px] uppercase tracking-[0.08em] text-[#9ccfff] m-0">ぬいぐるみチェンジ</p>
-          <p className="text-sm text-[#9fa8c1] m-0">撮影した写真を、選んだぬいぐるみタイプに「変身」します。</p>
+          <p className="text-[10px] font-bold text-[#1f78c8]">ぬいぐるみに変身！</p>
+          <p className="text-[16px] font-extrabold leading-[1.3]">ぬいぐるみになれる！</p>
+          <p className="text-[10px] text-[#3b2b12]">シャッターボタン ▶︎ 自分がぬいぐるみになる！</p>
         </div>
         <span
-          className={`px-3 py-2 rounded-full text-[12px] border ${
+          className={`border-2 text-[11px] font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap ${
             streamError
-              ? 'bg-[rgba(255,132,132,0.15)] text-[#ffc3c3] border-[rgba(255,132,132,0.35)]'
-              : 'bg-[rgba(82,246,169,0.18)] text-[#b1f2d5] border-[rgba(82,246,169,0.45)]'
+              ? 'border-[#7a1b1b] text-[#7a1b1b] bg-[rgba(255,150,150,0.22)]'
+              : 'border-[#358ae6] text-[#358ae6] bg-[rgba(53,138,230,0.25)]'
           }`}
         >
           {streamError ? 'カメラ許可が必要です' : 'カメラ準備OK'}
         </span>
-      </header>
+      </div>
 
-      <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
-        <div className="relative overflow-hidden rounded-[16px] bg-[#0b1024] min-h-[320px] aspect-[16/9]">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover rounded-[16px] bg-[#0d132d]"
-            style={{ transform: 'scaleX(-1)' }}
-            muted
-            playsInline
+      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[360px] mx-auto">
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+          muted
+          playsInline
+        />
+        <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
+            変身中...
+          </div>
+        )}
+        {capturedUrl && !isLoading && !resultUrl && !isCorrupted && !serverError && (
+          <img
+            className="absolute bottom-3 right-3 max-w-[160px] rounded-[10px] border border-white/40 shadow-md"
+            src={capturedUrl}
+            alt="capture"
           />
-          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[rgba(5,7,18,0.65)] text-[#dfe6ff] font-bold text-lg z-10 backdrop-blur-[2px] rounded-[16px]">
-              生成中...
-            </div>
-          )}
-          {capturedUrl && !isLoading && !resultUrl && !isCorrupted && !serverError && (
-            <img
-              className="absolute bottom-3 right-3 max-w-[180px] rounded-[12px] border border-white/20 shadow-lg"
-              src={capturedUrl}
-              alt="capture"
-            />
-          )}
+        )}
 
-          {isCorrupted && !isLoading && (
-            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]">
-              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <button
-                className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
-                onClick={handleRetry}
-              >
-                再生成する
-              </button>
-            </div>
-          )}
-
-          {serverError && !isLoading && (
-            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.45)]">
-              <p className="text-[12px] text-[#9ccfff] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
-              <button
-                className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)]"
-                onClick={handleRetry}
-              >
-                再生成する
-              </button>
-            </div>
-          )}
-
-          {resultUrl && !isLoading && !isCorrupted && (
-            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-[rgba(5,7,18,0.4)] rounded-[16px]">
-              <button
-                className="absolute top-2 right-2 w-8 h-8 rounded-full border border-white/30 bg-[rgba(0,0,0,0.4)] text-white text-lg"
-                onClick={() => {
-                  setResultUrl(null)
-                  setCapturedUrl(null)
-                  setIsCorrupted(false)
-                  setServerError(false)
-                  setResultQr(null)
-                }}
-                aria-label="close result"
-              >
-                ×
-              </button>
-              <img className="max-w-full max-h-full object-contain" src={resultUrl} alt="plush morph result" />
-              {resultQr && (
-                <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={resultQr} alt="QRコード" />
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex flex-col gap-3">
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
-            {plushOptions.map((opt) => (
-              <button
-                key={opt.id}
-                className={`border border-white/10 bg-white/5 rounded-[12px] p-2 flex flex-col gap-2 items-center transition ${
-                  selected.id === opt.id ? 'border-[rgba(139,220,255,0.8)] bg-[rgba(139,220,255,0.12)] -translate-y-[2px]' : ''
-                }`}
-                onClick={() => setSelected(opt)}
-              >
-                <img className="w-full aspect-square rounded-[10px] object-cover" src={opt.image} alt={opt.label} />
-                <div className="text-[#e8edff] font-bold text-[14px]">{opt.label}</div>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button className="border border-white/10 bg-white/5 text-white px-3 py-2 rounded-[12px] font-semibold transition" onClick={handleCapture}>
-              {capturedBlob ? '再撮影' : 'シャッター'}
+        {isCorrupted && !isLoading && (
+          <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.6)] text-white">
+            <p className="text-[12px] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+            <button className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5" onClick={handleRetry}>
+              再生成する
             </button>
+          </div>
+        )}
+
+        {serverError && !isLoading && (
+          <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.6)] text-white">
+            <p className="text-[12px] m-0">サーバーエラーが発生しました (500/503)。再生成してください。</p>
+            <button className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5" onClick={handleRetry}>
+              再生成する
+            </button>
+          </div>
+        )}
+
+        {resultUrl && !isLoading && !isCorrupted && (
+          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-[rgba(0,0,0,0.55)]">
             <button
-              className="border border-white/10 bg-gradient-to-r from-[#7dd8ff] to-[#70a4ff] text-[#0a0f26] px-3 py-2 rounded-[12px] font-semibold shadow-[0_8px_18px_rgba(112,164,255,0.35)] disabled:opacity-60"
-              disabled={isLoading}
-              onClick={handleTransform}
+              className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold"
+              onClick={() => {
+                setResultUrl(null)
+                setCapturedUrl(null)
+                setIsCorrupted(false)
+                setServerError(false)
+                setResultQr(null)
+              }}
+              aria-label="close result"
             >
-              {isLoading ? '生成中...' : '変身する'}
+              ×
             </button>
+            <img className="max-w-full max-h-full object-contain" src={resultUrl} alt="plush morph result" />
+            {resultQr && (
+              <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={resultQr} alt="QRコード" />
+            )}
           </div>
-          <p className="text-[#cbd3ec] m-0 text-sm">{status}</p>
-          {!NANO_KEY && <p className="text-[#ffc9c9] m-0 text-[13px]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
+        )}
+      </div>
+
+      <div className="bg-[#ffedab] rounded-[16px] p-2.5 flex flex-col gap-2 shadow-[0_8px_16px_rgba(0,0,0,0.15)]">
+        <div className="flex gap-2">
+          <button
+            className="flex-1 rounded-full px-2.5 py-2 bg-[#111] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
+            onClick={handleCapture}
+          >
+            {capturedBlob ? '再撮影' : 'シャッター'}
+          </button>
+          <button
+            className="flex-1 rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
+            disabled={isLoading}
+            onClick={handleTransform}
+          >
+            {isLoading ? '変身中...' : '変身'}
+          </button>
         </div>
+        <div className="grid grid-cols-3 gap-0 place-items-center pb-1">
+          {plushOptions.map((opt) => (
+            <button
+              key={opt.id}
+              className={`min-w-[86px] rounded-[12px] bg-white p-1 flex flex-col gap-1 items-center ${
+                selected.id === opt.id ? 'bg-[#e0f1ff]' : ''
+              }`}
+              onClick={() => setSelected(opt)}
+              aria-pressed={selected.id === opt.id}
+            >
+              <img className="w-[72px] h-[72px] object-cover rounded-[10px] border border-[#c9c9c9]" src={opt.image} alt={opt.label} />
+              <div className="text-[10px] font-bold">{opt.label}</div>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-[11px] text-[#3b2b12]">{status}</p>
+        {!NANO_KEY && <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
       </div>
     </section>
   )
@@ -1245,56 +1243,74 @@ function App() {
   const [tab, setTab] = useState<Tab>('tryon')
 
   return (
-    <div className="max-w-[1200px] mx-auto flex flex-col gap-6 px-[22px] pt-[28px] pb-[56px]">
-      <header
-        className="flex items-end justify-between gap-3 px-[22px] py-[18px] rounded-[18px] border border-white/10 shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
+    <div className="min-h-screen w-full bg-[#efe1ae] flex justify-center text-[#2a1905] leading-[1.4]">
+      <div
+        className="w-full max-w-[440px] min-h-screen px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
         style={{
-          background:
-            'linear-gradient(135deg, rgba(98, 121, 255, 0.18), rgba(87, 214, 255, 0.12)), rgba(11, 17, 40, 0.9)',
+          backgroundColor: '#fcc800',
+          backgroundImage: `url(${spBackground})`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center 100px',
+          backgroundSize: '440px auto',
         }}
       >
-        <div className="space-y-1">
-          <p className="text-[12px] uppercase tracking-[0.08em] text-[#9ccfff] m-0">AI ビジュアルエディター (デモ)</p>
-          <h1 className="text-[24px] font-bold m-0 text-white">3つのAI機能をまとめた Webデモ</h1>
-        </div>
-        <div className="flex gap-2">
-          <button
-            className={`px-[14px] py-[10px] rounded-[10px] border text-[14px] font-semibold transition ${
-              tab === 'tryon'
-                ? 'border-[#8bdcff] bg-[rgba(139,220,255,0.16)] -translate-y-px'
-                : 'border-white/10 bg-white/5'
-            }`}
-            onClick={() => setTab('tryon')}
-          >
-            AI試着
-          </button>
-          <button
-            className={`px-[14px] py-[10px] rounded-[10px] border text-[14px] font-semibold transition ${
-              tab === 'plush'
-                ? 'border-[#8bdcff] bg-[rgba(139,220,255,0.16)] -translate-y-px'
-                : 'border-white/10 bg-white/5'
-            }`}
-            onClick={() => setTab('plush')}
-          >
-            ぬいぐるみ制作
-          </button>
-          <button
-            className={`px-[14px] py-[10px] rounded-[10px] border text-[14px] font-semibold transition ${
-              tab === 'plush-change'
-                ? 'border-[#8bdcff] bg-[rgba(139,220,255,0.16)] -translate-y-px'
-                : 'border-white/10 bg-white/5'
-            }`}
-            onClick={() => setTab('plush-change')}
-          >
-            ぬいぐるみチェンジ
-          </button>
-        </div>
-      </header>
+        <div className="flex flex-col gap-3.5">
+          <header className="grid grid-cols-[1fr_auto_1fr] items-center text-[11px] font-bold uppercase tracking-[0.08em]">
+            <div className="inline-flex items-center gap-1.5">
+              <img className="h-[20px] w-auto" src={wearLogo} alt="wear am i logo" />
+            </div>
+            <div className="flex items-center justify-center">
+              <img className="h-[26px] w-auto" src={titleFrame} alt="text lens frame" />
+            </div>
+            <div className="inline-flex items-center gap-1.5 justify-end text-right">
+              <img className="h-[20px] w-auto" src={tclLogo} alt="toyousu creation lab logo" />
+            </div>
+          </header>
 
-      {tab === 'tryon' && <TryOnModule />}
-      {tab === 'plush' && <PlushModule />}
-      {tab === 'plush-change' && <PlushChangeModule />}
+          <section className="bg-[#ffedab] rounded-[16px] px-3 py-2 shadow-[0_10px_20px_rgba(0,0,0,0.18)] flex flex-col gap-2">
+            <div>
+              <p className="text-[12px] font-bold">テキストレンズ</p>
+              <p className="font-['Bebas_Neue'] text-[22px] tracking-[0.08em]">TRY ON CHARENGE</p>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                className={`border-2 rounded-[8px] py-2 px-1.5 text-[12px] font-medium transition active:translate-y-[1px] ${
+                  tab === 'tryon'
+                    ? 'bg-[#7eb8ff] text-[#0b1b3a] border-transparent'
+                    : 'bg-transparent border-[#2a1905]'
+                }`}
+                onClick={() => setTab('tryon')}
+              >
+                AI試着
+              </button>
+              <button
+                className={`border-2 rounded-[8px] py-2 px-1.5 text-[12px] font-medium transition active:translate-y-[1px] ${
+                  tab === 'plush'
+                    ? 'bg-[#7eb8ff] text-[#0b1b3a] border-transparent'
+                    : 'bg-transparent border-[#2a1905]'
+                }`}
+                onClick={() => setTab('plush')}
+              >
+                ぬいぐるみ試着
+              </button>
+              <button
+                className={`border-2 rounded-[8px] py-2 px-1.5 text-[12px] font-medium transition active:translate-y-[1px] ${
+                  tab === 'plush-change'
+                    ? 'bg-[#7eb8ff] text-[#0b1b3a] border-transparent'
+                    : 'bg-transparent border-[#2a1905]'
+                }`}
+                onClick={() => setTab('plush-change')}
+              >
+                ぬいぐるみに変身
+              </button>
+            </div>
+          </section>
 
+          {tab === 'tryon' && <TryOnModule />}
+          {tab === 'plush' && <PlushModule />}
+          {tab === 'plush-change' && <PlushChangeModule />}
+        </div>
+      </div>
     </div>
   )
 }

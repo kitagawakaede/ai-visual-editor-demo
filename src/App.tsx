@@ -49,8 +49,8 @@ const videoConstraints: MediaStreamConstraints['video'] = {
 
 async function captureStill(video: HTMLVideoElement): Promise<{ blob: Blob; url: string }> {
   const canvas = document.createElement('canvas')
-  const width = 640
-  const height = 360
+  const width = video.videoWidth || 640
+  const height = video.videoHeight || 360
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')
@@ -591,7 +591,7 @@ function TryOnModule() {
         </span>
       </div>
 
-      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[360px] mx-auto">
+      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[320px] md:max-w-[360px] mx-auto">
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
@@ -882,7 +882,7 @@ function PlushModule() {
         </span>
       </div>
 
-      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[360px] mx-auto">
+      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[320px] md:max-w-[360px] mx-auto">
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
@@ -1137,7 +1137,7 @@ function PlushChangeModule() {
         </span>
       </div>
 
-      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[360px] mx-auto">
+      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[320px] md:max-w-[360px] mx-auto">
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"

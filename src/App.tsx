@@ -51,11 +51,24 @@ async function captureStill(video: HTMLVideoElement): Promise<{ blob: Blob; url:
   const canvas = document.createElement('canvas')
   const width = video.videoWidth || 640
   const height = video.videoHeight || 360
-  canvas.width = width
-  canvas.height = height
+  const targetRatio = 9 / 16
+  const sourceRatio = width / height
+  let sx = 0
+  let sy = 0
+  let sWidth = width
+  let sHeight = height
+  if (sourceRatio > targetRatio) {
+    sWidth = Math.round(height * targetRatio)
+    sx = Math.round((width - sWidth) / 2)
+  } else if (sourceRatio < targetRatio) {
+    sHeight = Math.round(width / targetRatio)
+    sy = Math.round((height - sHeight) / 2)
+  }
+  canvas.width = sWidth
+  canvas.height = sHeight
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas not supported')
-  ctx.drawImage(video, 0, 0, width, height)
+  ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight)
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {

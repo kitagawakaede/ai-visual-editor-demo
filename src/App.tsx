@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.0'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 type Tab = 'tryon' | 'plush' | 'plush-change'
+type ImageSize = { width: number; height: number }
 
 const NANO_URL =
   import.meta.env.VITE_NANO_BANANA_URL ??
@@ -41,17 +42,22 @@ const omikujiImages = Object.values(
   import.meta.glob('./assets/omikuji/*.png', { eager: true, import: 'default' }) as Record<string, string>,
 )
 
+const CAMERA_ASPECT_RATIO = 3 / 4
+
 const videoConstraints: MediaStreamConstraints['video'] = {
-  width: { ideal: 640 },
-  height: { ideal: 360 },
+  width: { ideal: 720 },
+  height: { ideal: 960 },
+  aspectRatio: { ideal: CAMERA_ASPECT_RATIO },
   facingMode: 'user',
 }
 
-async function captureStill(video: HTMLVideoElement): Promise<{ blob: Blob; url: string }> {
+async function captureStill(video: HTMLVideoElement): Promise<{ blob: Blob; url: string; width: number; height: number }> {
   const canvas = document.createElement('canvas')
   const width = video.videoWidth || 640
   const height = video.videoHeight || 360
-  const targetRatio = 9 / 16
+  const displayWidth = video.clientWidth || 0
+  const displayHeight = video.clientHeight || 0
+  const targetRatio = displayWidth && displayHeight ? displayWidth / displayHeight : CAMERA_ASPECT_RATIO
   const sourceRatio = width / height
   let sx = 0
   let sy = 0
@@ -64,16 +70,18 @@ async function captureStill(video: HTMLVideoElement): Promise<{ blob: Blob; url:
     sHeight = Math.round(width / targetRatio)
     sy = Math.round((height - sHeight) / 2)
   }
-  canvas.width = sWidth
-  canvas.height = sHeight
+  const outputWidth = Math.max(1, Math.round(displayWidth || sWidth))
+  const outputHeight = Math.max(1, Math.round(displayHeight || sHeight))
+  canvas.width = outputWidth
+  canvas.height = outputHeight
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas not supported')
-  ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight)
+  ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, outputWidth, outputHeight)
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
         if (blob) {
-          resolve({ blob, url: URL.createObjectURL(blob) })
+          resolve({ blob, url: URL.createObjectURL(blob), width: outputWidth, height: outputHeight })
         } else {
           reject(new Error('画像の取得に失敗しました'))
         }
@@ -148,6 +156,48 @@ async function compressImage(blob: Blob, maxSize = 960, quality = 0.72): Promise
         (b) => {
           if (b) resolve(b)
           else reject(new Error('画像の圧縮に失敗しました'))
+        },
+        'image/jpeg',
+        quality,
+      )
+    })
+  } finally {
+    URL.revokeObjectURL(imgUrl)
+  }
+}
+
+async function normalizeImageToSize(
+  blob: Blob,
+  targetWidth?: number,
+  targetHeight?: number,
+  quality = 0.9,
+): Promise<Blob> {
+  if (!targetWidth || !targetHeight) return blob
+  const imgUrl = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = () => reject(new Error('画像の読み込みに失敗しました'))
+      image.src = imgUrl
+    })
+    if (img.width === targetWidth && img.height === targetHeight) return blob
+    const canvas = document.createElement('canvas')
+    canvas.width = targetWidth
+    canvas.height = targetHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas not supported')
+    const scale = Math.max(targetWidth / img.width, targetHeight / img.height)
+    const drawWidth = Math.round(img.width * scale)
+    const drawHeight = Math.round(img.height * scale)
+    const dx = Math.round((targetWidth - drawWidth) / 2)
+    const dy = Math.round((targetHeight - drawHeight) / 2)
+    ctx.drawImage(img, dx, dy, drawWidth, drawHeight)
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => {
+          if (b) resolve(b)
+          else reject(new Error('画像の調整に失敗しました'))
         },
         'image/jpeg',
         quality,
@@ -455,6 +505,7 @@ function TryOnModule() {
   const [instruction, setInstruction] = useState('')
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
+  const [captureSize, setCaptureSize] = useState<ImageSize | null>(null)
   const [editedUrl, setEditedUrl] = useState<string | null>(null)
   const [editedQr, setEditedQr] = useState<string | null>(null)
   const [isCorrupted, setIsCorrupted] = useState(false)
@@ -531,6 +582,7 @@ function TryOnModule() {
       const shot = await captureStill(videoRef.current)
       setCapturedUrl(shot.url)
       setCapturedBlob(shot.blob)
+      setCaptureSize({ width: shot.width, height: shot.height })
       setStatus('撮影完了。お着替えを押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -553,9 +605,11 @@ function TryOnModule() {
       const combinedPrompt = [tryOnPromptBase, instruction.trim()].filter(Boolean).join(' ')
       const result = await requestNanoBanana(combinedPrompt, capturedBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
-        setEditedUrl(result.url)
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
-        uploadToSupabase(blob, 'tryon', { compress: true })
+        const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
+        const displayUrl = URL.createObjectURL(normalized)
+        setEditedUrl(displayUrl)
+        uploadToSupabase(normalized, 'tryon', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setEditedQr)
           .catch((err) => logError('tryon-qr', err))
@@ -565,10 +619,11 @@ function TryOnModule() {
         setStatus('生成できませんでした。もう一度お試しください。')
         logError('tryon-invalid-base64', result.base64)
       } else {
-        setEditedUrl(result.url)
-        fetch(result.url)
-          .then((res) => res.blob())
-          .then((b) => uploadToSupabase(b, 'tryon', { compress: true }))
+        const sourceBlob = await (await fetch(result.url)).blob()
+        const normalized = await normalizeImageToSize(sourceBlob, captureSize?.width, captureSize?.height)
+        const displayUrl = URL.createObjectURL(normalized)
+        setEditedUrl(displayUrl)
+        uploadToSupabase(normalized, 'tryon', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setEditedQr)
           .catch((err) => logError('tryon-qr', err))
@@ -730,6 +785,7 @@ function PlushModule() {
   const [streamError, setStreamError] = useState<string | null>(null)
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
+  const [captureSize, setCaptureSize] = useState<ImageSize | null>(null)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const [generatedBase64, setGeneratedBase64] = useState<string | null>(null)
   const [generatedQr, setGeneratedQr] = useState<string | null>(null)
@@ -768,6 +824,7 @@ function PlushModule() {
       const shot = await captureStill(videoRef.current)
       setCapturedBlob(shot.blob)
       setCapturedUrl(shot.url)
+      setCaptureSize({ width: shot.width, height: shot.height })
       setStatus('撮影完了。生成を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -790,10 +847,13 @@ function PlushModule() {
     try {
       const result = await requestNanoBanana(defaultToyPrompt, capturedBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
-        setGeneratedBase64(result.base64)
-        setGeneratedUrl(result.url)
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
-        uploadToSupabase(blob, 'plush', { compress: true })
+        const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
+        const displayUrl = URL.createObjectURL(normalized)
+        setGeneratedUrl(displayUrl)
+        const normalizedBase64 = await blobToBase64(normalized)
+        setGeneratedBase64(normalizedBase64)
+        uploadToSupabase(normalized, 'plush', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setGeneratedQr)
           .catch((err) => logError('plush-qr', err))
@@ -803,10 +863,13 @@ function PlushModule() {
         setStatus('生成できませんでした。もう一度生成してください。')
         logError('plush-invalid-base64', result.base64)
       } else {
-        setGeneratedUrl(result.url)
-        fetch(result.url)
-          .then((res) => res.blob())
-          .then((b) => uploadToSupabase(b, 'plush', { compress: true }))
+        const sourceBlob = await (await fetch(result.url)).blob()
+        const normalized = await normalizeImageToSize(sourceBlob, captureSize?.width, captureSize?.height)
+        const displayUrl = URL.createObjectURL(normalized)
+        setGeneratedUrl(displayUrl)
+        const normalizedBase64 = await blobToBase64(normalized)
+        setGeneratedBase64(normalizedBase64)
+        uploadToSupabase(normalized, 'plush', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setGeneratedQr)
           .catch((err) => logError('plush-qr', err))
@@ -845,10 +908,13 @@ function PlushModule() {
         '不足箇所のみを補正した最終画像を1枚だけ生成し、Base64形式のみで返せ。'
       const result = await requestNanoBanana(repairPrompt, blob)
       if (result.base64 && isValidBase64Image(result.base64)) {
-        setGeneratedUrl(result.url)
-        setGeneratedBase64(result.base64)
         const b = await base64ToBlob(result.base64, 'image/jpeg')
-        uploadToSupabase(b, 'plush', { compress: true })
+        const normalized = await normalizeImageToSize(b, captureSize?.width, captureSize?.height)
+        const displayUrl = URL.createObjectURL(normalized)
+        setGeneratedUrl(displayUrl)
+        const normalizedBase64 = await blobToBase64(normalized)
+        setGeneratedBase64(normalizedBase64)
+        uploadToSupabase(normalized, 'plush', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setGeneratedQr)
           .catch((err) => logError('plush-qr', err))
@@ -860,7 +926,12 @@ function PlushModule() {
         setStatus('生成できませんでした。もう一度生成してください。')
         logError('plush-regenerate-invalid-base64', result.base64)
       } else {
-        setGeneratedUrl(result.url)
+        const sourceBlob = await (await fetch(result.url)).blob()
+        const normalized = await normalizeImageToSize(sourceBlob, captureSize?.width, captureSize?.height)
+        const displayUrl = URL.createObjectURL(normalized)
+        setGeneratedUrl(displayUrl)
+        const normalizedBase64 = await blobToBase64(normalized)
+        setGeneratedBase64(normalizedBase64)
         setPlushCorrupted(false)
         setPlushServerError(false)
         setStatus('不足部分を修正しました')
@@ -1025,6 +1096,7 @@ function PlushChangeModule() {
   const [streamError, setStreamError] = useState<string | null>(null)
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
+  const [captureSize, setCaptureSize] = useState<ImageSize | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultQr, setResultQr] = useState<string | null>(null)
   const [selected, setSelected] = useState<PlushOption>(plushOptions[0])
@@ -1067,6 +1139,7 @@ function PlushChangeModule() {
       const shot = await captureStill(videoRef.current)
       setCapturedUrl(shot.url)
       setCapturedBlob(shot.blob)
+      setCaptureSize({ width: shot.width, height: shot.height })
       setStatus('撮影完了。ぬいぐるみを選んで「変身する」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -1099,9 +1172,11 @@ function PlushChangeModule() {
       const refBlob = await getRefBlob(selected)
       const result = await requestNanoBanana(buildPrompt(selected), capturedBlob, refBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
-        setResultUrl(result.url)
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
-        uploadToSupabase(blob, 'plush-change', { compress: true })
+        const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
+        const displayUrl = URL.createObjectURL(normalized)
+        setResultUrl(displayUrl)
+        uploadToSupabase(normalized, 'plush-change', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setResultQr)
           .catch((err) => logError('plush-change-qr', err))
@@ -1111,10 +1186,11 @@ function PlushChangeModule() {
         setStatus('生成できませんでした。もう一度生成してください。')
         logError('plush-change-invalid-base64', result.base64)
       } else {
-        setResultUrl(result.url)
-        fetch(result.url)
-          .then((res) => res.blob())
-          .then((b) => uploadToSupabase(b, 'plush-change', { compress: true }))
+        const sourceBlob = await (await fetch(result.url)).blob()
+        const normalized = await normalizeImageToSize(sourceBlob, captureSize?.width, captureSize?.height)
+        const displayUrl = URL.createObjectURL(normalized)
+        setResultUrl(displayUrl)
+        uploadToSupabase(normalized, 'plush-change', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setResultQr)
           .catch((err) => logError('plush-change-qr', err))

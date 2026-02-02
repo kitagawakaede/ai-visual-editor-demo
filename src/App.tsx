@@ -19,19 +19,19 @@ const defaultToyPrompt =
   '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服と同一の外観をぬいぐるみに着せること。服の素材・質感・構造・色・模様を人物の服と完全に一致させ、不足している箇所のみ補完して生成せよ。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状・フレームの細部構造を完全に保持し、一切の簡略化を禁止せよ。ぬいぐるみのサイズに合わせて正確にスケール調整を行い、質感は過度な反射を抑えた高品質な樹脂やマットな硬質素材として再現し、ぬいぐるみの顔や体に物理的に固定されているように自然な影を伴って装着させること。最終的に服転写が正しく行われた1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
 
 const tryOnPromptBase =
-  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服の素材・質感・構造・色・模様を保持したまま、指示された変更のみを反映せよ。素材や質感を改変することを禁止し、不足箇所のみを補完して生成せよ。メガネやアクセサリー類を着用している場合には、元の材質感・金属の光沢・レンズの透明度、およびデザインの細部までを完全に維持せよ。ぬいぐるみのプロポーションに合わせて形状を歪ませることなく、後付けの精密なパーツとして違和感なく装着させ、現実のアイテムとしてのアイデンティティを100%保持したまま生成すること。最終的に1枚の最終画像のみを生成し、Base64文字列のみを返せ。テキスト・引用符・Markdown・コードブロックは禁止。'
+  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服の素材・質感・構造・色・模様を保持したまま、指示された変更のみを反映せよ。素材や質感を改変することを禁止し、不足箇所のみを補完して生成せよ。メガネやアクセサリー類を着用している場合には、元の材質感・金属の光沢・レンズの透明度、およびデザインの細部までを完全に維持せよ。ぬいぐるみのプロポーションに合わせて形状を歪ませることなく、後付けの精密なパーツとして違和感なく装着させ、現実のアイテムとしてのアイデンティティを100%保持したまま着用している場合には、入力画像のデザイン・形状を完全に再現せよ。素材は羊毛フェルトの世界観に合わせつつも、形が崩れることを厳格に禁止し、細いワイヤーワークや樹脂コーティングされたパーツのような精密なハンドメイドパーツとして表現すること。フェルトによる簡略化を禁止し、細部まで実物と同一のディテールを保持して装着させよ。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に羊毛フェルト製ぬいぐるみとして一貫した世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
 const plushChangePromptBase =
   '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、フェルトや起毛布などのぬいぐるみ素材に置き換えること。人間の髪の色および髪型は重要な参照情報として扱い、色味・明度・系統を忠実に再現しつつ、人間構造を保持せず参照ぬいぐるみの造形ルールに従って簡略化・立体化し、前髪・分け目・長さ・ボリュームなどの特徴をぬいぐるみ적解釈で再構成し、毛ではなく布やフェルトの縫い付けパーツとして表現する。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状・フレームの細部構造を完全に保持し、一切の簡略化を禁止せよ。ぬいぐるみのサイズに合わせて正確にスケール調整を行い、質感は過度な反射を抑えた高品質な樹脂やマットな硬質素材として再現し、ぬいぐるみの顔や体に物理的に固定されているように自然な影を伴って装着させること。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に参照ぬいぐるみと同一世界観・材質感・造形ルールを持つ完全なぬいぐるみキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
   const plushChangePromptWoolFelting =
-  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、羊毛フェルト特有の繊維感・起毛感・手作業感のある素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・明度・系統を忠実に再現しつつ、羊毛フェルトを盛り上げて成形した立体的な髪パーツとして表現し、毛束の厚み・丸み・ボリューム感が分かる造形とする。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状を完全に再現せよ。素材は羊毛フェルトの世界観に合わせつつも、形が崩れることを厳格に禁止し、細いワイヤーワークや樹脂コーティングされたパーツのような精密なハンドメイドパーツとして表現すること。フェルトによる簡略化を禁止し、細部まで実物と同一のディテールを保持して装着させよ。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に羊毛フェルト製ぬいぐるみとして一貫した世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
+  '直ちにスタイル転写タスクを実行せよ。入力画像の人物が着用する服のスタイル情報（シルエット、形状、パーツ構造、縫い目、フード形状、紐の太さ、袖口のリブ、厚み、素材、質感、布地の特徴、色、模様、プリント、ロゴ位置）を抽出し、その服の素材・質感・構造・色・模様を保持したまま、指示された変更のみを反映せよ。素材や質感を改変することを禁止し、不足箇所のみを補完して生成せよ。メガネやアクセサリー類を着用している場合には、元の材質感・金属の光沢・レンズの透明度、およびデザインの細部までを完全に維持せよ。ぬいぐるみのプロポーションに合わせて形状を歪ませることなく、後付けの精密なパーツとして違和感なく装着させ、現実のアイテムとしてのアイデンティティを100%保持したまま着用している場合には、入力画像のデザイン・形状を完全に再現せよ。素材は羊毛フェルトの世界観に合わせつつも、形が崩れることを厳格に禁止し、細いワイヤーワークや樹脂コーティングされたパーツのような精密なハンドメイドパーツとして表現すること。フェルトによる簡略化を禁止し、細部まで実物と同一のディテールを保持して装着させよ。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に羊毛フェルト製ぬいぐるみとして一貫した世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
 const plushChangePromptPixelArt =
   '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質をドット絵表現として完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置をドット単位で厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型はドット絵として表現された丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄を保持しつつ、ドット絵として簡略化されたテクスチャで表現する。髪・肌・顔の質感はすべて人間的要素を排除し、低解像度ピクセルアート特有の階調・色数制限・ドット感で表現すること。人間の髪の色および髪型は重要な参照情報として扱い、色味と特徴を保持したままドット絵として再構成し、立体感ではなくピクセル配置によって髪型を表現する。メガネやアクセサリー類を着用している場合には、実物のデザイン・色・特徴的な形状をドット絵の制約の中で限界まで精密に再現せよ。単なる記号的な表現を禁止し、フレームの厚みやレンズの形、アクセサリーの固有のデザインが識別できるレベルでピクセルを配置し、キャラクターの顔や体に正確にフィットさせて描画すること。背景も人物と同一のドット絵スタイルで統一し、写実的表現や高解像度表現を禁止する。最終的に人物と背景が完全に統一されたドット絵世界観のぬいぐるみキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
 const plushChangePromptFlatHair =
-  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、一般的な布製ぬいぐるみ素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・系統は保持しつつ、立体的に盛り上げず平面的に縫い付けられた布パーツやプリント表現として髪型を再構成する。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状を完全に保持し、簡略化された刺繍表現ではなく、独立した硬質パーツや高品質な別布パーツとして立体的に再現せよ。フレームの細さや装飾の細部までを維持し、ぬいぐるみの顔の曲線に合わせて正確にフィットさせ、後付けのオプションパーツのような高い完成度で装着させること。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に量産型の一般的なぬいぐるみとして自然な世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
+  '入力画像の人間の顔と体、および人間のプロポーションを完全に破棄し、参照ぬいぐるみ画像の形状・質感・材質へ完全変換せよ。参照ぬいぐるみの原型シルエット・比率・丸み・パーツ配置を厳格に保持し、原型が分からなくなる形状変更を禁止すること。人間の顔や体型は参照ぬいぐるみと同一の丸くディフォルメされたぬいぐるみ体型に置き換え、入力画像に写っていた人間の身体構造・骨格・筋肉・輪郭は最終画像に一切残してはならない。服は入力画像の色・柄・素材感・テクスチャを保持したまま形状のみをぬいぐるみ体型にフィットさせ、デザイン改変や省略を禁止する。髪・肌・顔の質感はすべて人間的要素を排除し、一般的な布製ぬいぐるみ素材として再構成すること。人間の髪の色および髪型は重要な参照情報として扱い、色味・系統は保持しつつ、立体的に盛り上げず平面的に縫い付けられた布パーツやプリント表現として髪型を再構成する。メガネやアクセサリー類を着用している場合には、入力画像のデザイン・形状を完全に保持し、簡略化された刺繍表現ではなく、独立した硬質パーツや高品質な別布パーツとして立体的に再現せよ。フレームの細さや装飾の細部までを維持し、ぬいぐるみの顔の曲線に合わせて正確にフィットさせ、後付けのオプションパーツのような高い完成度で装着させること。入力画像に写っていた人間は最終画像に一切表示せず、写実的な人肌・人毛・人間らしい輪郭の残留を禁止する。最終的に一般的なぬいぐるみとして自然な世界観・質感・造形ルールを持つキャラクター1体のみを生成し、出力は1枚の画像のBase64エンコード文字列のみとし、説明文・JSON・改行・余計な文字列は一切含めない。'
 
 const spBackground = new URL('./assets/UI/sp_bg.png', import.meta.url).href
 const wearLogo = new URL('./assets/UI/wear_am_i_logo-01 1.png', import.meta.url).href
@@ -121,14 +121,23 @@ type NanoResponse = { url: string; base64?: string }
 const MAX_QR_PAYLOAD = 1500
 
 async function generateQrDataUrl(text: string): Promise<string> {
+  const start = performance.now()
+  console.log('qr:start', { len: text.length })
   if (text.length > MAX_QR_PAYLOAD) {
     throw new Error('QR用データが長すぎます（URLを短縮する必要があります）')
   }
-  // @ts-ignore external import via CDN
-  const mod = (await import(/* @vite-ignore */ 'https://esm.sh/qrcode@1.5.3')) as any
-  const toDataURL = mod?.toDataURL ?? mod?.default?.toDataURL
-  if (!toDataURL) throw new Error('QRモジュールの読み込みに失敗しました')
-  return toDataURL(text, { margin: 1, width: 180 })
+  try {
+    // @ts-ignore external import via CDN
+    const mod = (await import(/* @vite-ignore */ 'https://esm.sh/qrcode@1.5.3')) as any
+    const toDataURL = mod?.toDataURL ?? mod?.default?.toDataURL
+    if (!toDataURL) throw new Error('QRモジュールの読み込みに失敗しました')
+    const dataUrl = await toDataURL(text, { margin: 1, width: 180 })
+    console.log('qr:done', { ms: Math.round(performance.now() - start) })
+    return dataUrl
+  } catch (err) {
+    console.error('qr:error', err)
+    throw err
+  }
 }
 
 async function compressImage(blob: Blob, maxSize = 960, quality = 0.72): Promise<Blob> {
@@ -212,7 +221,10 @@ const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPAB
 
 async function uploadToSupabase(blob: Blob, prefix: string, opts?: { compress?: boolean }): Promise<string> {
   if (!supabase) throw new Error('Supabase未設定です')
-  const processedBlob = opts?.compress ? await compressImage(blob) : blob
+  const start = performance.now()
+  const compress = Boolean(opts?.compress)
+  const processedBlob = compress ? await compressImage(blob) : blob
+  console.log('supabase:upload:start', { prefix, bytes: processedBlob.size, compress })
   const path = `${prefix}/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`
   const upload = async () =>
     supabase.storage.from(SUPABASE_BUCKET).upload(path, processedBlob, {
@@ -228,10 +240,13 @@ async function uploadToSupabase(blob: Blob, prefix: string, opts?: { compress?: 
   if (error) {
     const detail =
       error instanceof Error ? error.message : typeof error === 'object' ? JSON.stringify(error) : String(error)
+    console.error('supabase:upload:error', { prefix, error: detail })
     throw new Error(detail)
   }
+  console.log('supabase:upload:ok', { prefix, path, ms: Math.round(performance.now() - start) })
   const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(path)
   if (!data?.publicUrl) throw new Error('public URL の取得に失敗しました')
+  console.log('supabase:url', { prefix, publicUrl: data.publicUrl })
   return data.publicUrl
 }
 
@@ -271,6 +286,14 @@ async function requestNanoBanana(prompt: string, imageBlob: Blob, refBlob?: Blob
   if (!NANO_KEY) {
     throw new Error('VITE_NANO_BANANA_API_KEY を設定してください')
   }
+  const start = performance.now()
+  console.log('nano:start', {
+    promptLen: prompt.length,
+    imageBytes: imageBlob.size,
+    hasRef: Boolean(refBlob),
+    hasKey: Boolean(NANO_KEY),
+    url: NANO_URL,
+  })
   const base64Image = await blobToBase64(imageBlob)
   const refBase64 = refBlob ? await blobToBase64(refBlob) : null
 
@@ -319,10 +342,16 @@ async function requestNanoBanana(prompt: string, imageBlob: Blob, refBlob?: Blob
 
   if (!response.ok) {
     const message = await response.text()
+    console.error('nano:error', {
+      status: response.status,
+      ms: Math.round(performance.now() - start),
+      message: message.slice(0, 300),
+    })
     throw new Error(`nano-banana API error: ${message}`)
   }
 
   const contentType = response.headers.get('content-type') ?? ''
+  console.log('nano:ok', { status: response.status, ms: Math.round(performance.now() - start), contentType })
   if (contentType.includes('application/json')) {
     const rawText = await response.text()
     console.log('nano-banana raw JSON response:', rawText)

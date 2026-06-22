@@ -13,16 +13,34 @@ export async function requestOpenAIImageEdit(
     throw new Error('VITE_OPENAI_API_KEY を設定してください')
   }
   const start = performance.now()
+
+  const toPng = (blob: Blob): Promise<Blob> =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob)
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        canvas.getContext('2d')!.drawImage(img, 0, 0)
+        canvas.toBlob((b) => { URL.revokeObjectURL(url); b ? resolve(b) : reject(new Error('PNG変換失敗')) }, 'image/png')
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像読み込み失敗')) }
+      img.src = url
+    })
+
+  const personPng = await toPng(imageBlob)
+  const refPng = refBlob ? await toPng(refBlob) : null
+
   const formData = new FormData()
   formData.append('model', model)
-  formData.append('image[]', imageBlob, 'person.jpg')
-  if (refBlob) {
-    formData.append('image[]', refBlob, 'reference.png')
+  formData.append('image[]', personPng, 'person.png')
+  if (refPng) {
+    formData.append('image[]', refPng, 'reference.png')
   }
   formData.append('prompt', prompt)
   formData.append('n', '1')
   formData.append('size', '1024x1024')
-  formData.append('response_format', 'b64_json')
 
   console.log('openai:image-edit:start', { model, promptLen: prompt.length, hasRef: Boolean(refBlob) })
 

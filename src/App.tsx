@@ -29,6 +29,7 @@ function App() {
         style={{
           width: '440px',
           minHeight: '100vh',
+          marginLeft: 'calc(50vw - 220px)',
           backgroundColor: '#fcc800',
           backgroundImage: `url(${spBackground})`,
           backgroundRepeat: 'no-repeat',

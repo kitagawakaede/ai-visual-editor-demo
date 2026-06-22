@@ -22,8 +22,6 @@ body {
 #root {
   width: 100%;
   min-height: 100vh;
-  display: flex;
-  justify-content: center;
   color: #2a1905;
   line-height: 1.4;
 }

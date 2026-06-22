@@ -9,6 +9,35 @@ import { OmikujiOverlay } from '../components/OmikujiOverlay'
 
 const sofubiRefUrl = new URL('../assets/ref_sofubi.png', import.meta.url).href
 
+// 上半身写真でも全身フィギュアを生成させるため、
+// 元画像の下に80%の余白を追加してAIに「体が続く空間がある」と認識させる
+async function padImageForFullBody(blob: Blob): Promise<Blob> {
+  const imgUrl = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = () => reject(new Error('画像読み込みに失敗しました'))
+      image.src = imgUrl
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = Math.round(img.height * 1.8)
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#f5eedc'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0)
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => { if (b) resolve(b); else reject(new Error('パディング処理に失敗しました')) },
+        'image/png',
+      )
+    })
+  } finally {
+    URL.revokeObjectURL(imgUrl)
+  }
+}
+
 type ImageSize = { width: number; height: number }
 
 export function SofubiModule() {
@@ -87,7 +116,8 @@ export function SofubiModule() {
     setStatus('変身中...')
     try {
       const refBlob = await getRefBlob()
-      const result = await requestOpenAIImageEdit(SOFUBI_PROMPT, capturedBlob, refBlob)
+      const paddedBlob = await padImageForFullBody(capturedBlob)
+      const result = await requestOpenAIImageEdit(SOFUBI_PROMPT, paddedBlob, refBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
         const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)

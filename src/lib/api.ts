@@ -1,5 +1,52 @@
 import { blobToBase64, isLikelyBase64, base64ToObjectUrl } from './image'
 
+export const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY ?? ''
+const OPENAI_IMAGE_EDIT_URL = 'https://api.openai.com/v1/images/edits'
+
+export async function requestOpenAIImageEdit(
+  prompt: string,
+  imageBlob: Blob,
+  refBlob?: Blob,
+  model = 'gpt-image-1',
+): Promise<{ url: string; base64?: string }> {
+  if (!OPENAI_KEY) {
+    throw new Error('VITE_OPENAI_API_KEY を設定してください')
+  }
+  const start = performance.now()
+  const formData = new FormData()
+  formData.append('model', model)
+  formData.append('image[]', imageBlob, 'person.jpg')
+  if (refBlob) {
+    formData.append('image[]', refBlob, 'reference.png')
+  }
+  formData.append('prompt', prompt)
+  formData.append('n', '1')
+  formData.append('size', '1024x1024')
+  formData.append('response_format', 'b64_json')
+
+  console.log('openai:image-edit:start', { model, promptLen: prompt.length, hasRef: Boolean(refBlob) })
+
+  const response = await fetch(OPENAI_IMAGE_EDIT_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${OPENAI_KEY}` },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const message = await response.text()
+    console.error('openai:image-edit:error', { status: response.status, ms: Math.round(performance.now() - start), message: message.slice(0, 300) })
+    throw new Error(`OpenAI image edit error: ${message}`)
+  }
+
+  const data = await response.json()
+  const b64 = data?.data?.[0]?.b64_json as string | undefined
+  if (!b64) throw new Error('OpenAI レスポンスに画像データがありません')
+
+  console.log('openai:image-edit:ok', { ms: Math.round(performance.now() - start) })
+  const url = base64ToObjectUrl(b64)
+  return { url, base64: b64 }
+}
+
 const NANO_URL =
   import.meta.env.VITE_NANO_BANANA_URL ??
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'

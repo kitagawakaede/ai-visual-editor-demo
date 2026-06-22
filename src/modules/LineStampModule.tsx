@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { captureStill, normalizeImageToSize, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
-import { requestNanoBanana, NANO_KEY } from '../lib/api'
+import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
 import { LINE_STAMP_PROMPT_BASE } from '../constants/prompts'
@@ -143,7 +143,7 @@ export function LineStampModule() {
     setStatus('スタンプ生成中...')
     try {
       const refBlob = await getRefBlob()
-      const result = await requestNanoBanana(LINE_STAMP_PROMPT_BASE, capturedBlob, refBlob)
+      const result = await requestOpenAIImageEdit(LINE_STAMP_PROMPT_BASE, capturedBlob, refBlob)
       let rawBlob: Blob | null = null
       if (result.base64 && isValidBase64Image(result.base64)) {
         rawBlob = await base64ToBlob(result.base64, 'image/jpeg')
@@ -294,8 +294,8 @@ export function LineStampModule() {
         </div>
 
         <p className="text-[11px] text-[#3b2b12]">{status}</p>
-        {!NANO_KEY && (
-          <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>
+        {!OPENAI_KEY && (
+          <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_OPENAI_API_KEY を設定してください。</p>
         )}
       </div>
     </section>

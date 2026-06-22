@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { captureStill, normalizeImageToSize, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
-import { requestNanoBanana, NANO_KEY } from '../lib/api'
+import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
 import { SOFUBI_PROMPT } from '../constants/prompts'
@@ -87,7 +87,7 @@ export function SofubiModule() {
     setStatus('変身中...')
     try {
       const refBlob = await getRefBlob()
-      const result = await requestNanoBanana(SOFUBI_PROMPT, capturedBlob, refBlob)
+      const result = await requestOpenAIImageEdit(SOFUBI_PROMPT, capturedBlob, refBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
         const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
@@ -213,8 +213,8 @@ export function SofubiModule() {
           </button>
         </div>
         <p className="text-[11px] text-[#3b2b12]">{status}</p>
-        {!NANO_KEY && (
-          <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>
+        {!OPENAI_KEY && (
+          <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_OPENAI_API_KEY を設定してください。</p>
         )}
       </div>
     </section>

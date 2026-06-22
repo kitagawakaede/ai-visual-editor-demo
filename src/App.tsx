@@ -24,13 +24,12 @@ function App() {
   const [tab, setTab] = useState<Tab>('tryon')
 
   return (
-    <div className="w-full text-[#2a1905] leading-[1.4]" style={{ minHeight: '100vh', backgroundColor: '#efe1ae' }}>
+    <div className="text-[#2a1905] leading-[1.4]">
       <div
-        className="w-full px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
+        className="px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
         style={{
-          maxWidth: '440px',
+          width: '440px',
           minHeight: '100vh',
-          margin: '0 auto',
           backgroundColor: '#fcc800',
           backgroundImage: `url(${spBackground})`,
           backgroundRepeat: 'no-repeat',

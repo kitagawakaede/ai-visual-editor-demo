@@ -24,7 +24,6 @@ function App() {
   const [tab, setTab] = useState<Tab>('tryon')
 
   return (
-    <div className="text-[#2a1905] leading-[1.4]">
       <div
         className="px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
         style={{
@@ -79,7 +78,6 @@ function App() {
           {tab === 'timeslip' && <ComingSoonModule />}
         </div>
       </div>
-    </div>
   )
 }
 

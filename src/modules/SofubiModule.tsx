@@ -164,62 +164,64 @@ export function SofubiModule() {
         </span>
       </div>
 
-      {/* 結果表示：生成画像をそのままの比率で表示 */}
-      {resultUrl && !isLoading && !isCorrupted ? (
-        <div className="relative rounded-[18px] overflow-hidden shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[320px] md:max-w-[360px] mx-auto">
-          <button
-            className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold z-10"
-            onClick={() => {
-              setResultUrl(null)
-              setCapturedUrl(null)
-              setIsCorrupted(false)
-              setServerError(false)
-              setResultQr(null)
-            }}
-            aria-label="close result"
-          >
-            ×
-          </button>
-          <img className="w-full h-auto block" src={resultUrl} alt="sofubi result" />
-          {resultQr && (
-            <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={resultQr} alt="QRコード" />
-          )}
-        </div>
-      ) : (
-        <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[320px] md:max-w-[360px] mx-auto">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ transform: 'scaleX(-1)' }}
-            muted
-            playsInline
+      <div className="relative overflow-hidden rounded-[18px] bg-[#0f0f12] aspect-[3/4] shadow-[0_10px_18px_rgba(0,0,0,0.2)] w-full max-w-[320px] md:max-w-[360px] mx-auto">
+        <video
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+          muted
+          playsInline
+        />
+        <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
+            変身中...
+          </div>
+        )}
+        {capturedUrl && !isLoading && !resultUrl && !isCorrupted && !serverError && (
+          <img
+            className="absolute bottom-3 right-3 max-w-[160px] rounded-[10px] border border-white/40 shadow-md"
+            src={capturedUrl}
+            alt="capture"
           />
-          <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
-              変身中...
-            </div>
-          )}
-          {capturedUrl && !isLoading && !isCorrupted && !serverError && (
+        )}
+        {(isCorrupted || serverError) && !isLoading && (
+          <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.6)] text-white">
+            <p className="text-[12px] m-0">生成できませんでした。もう一度お試しください。</p>
+            <button
+              className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
+              onClick={handleTransform}
+            >
+              再生成する
+            </button>
+          </div>
+        )}
+        {resultUrl && !isLoading && !isCorrupted && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0f0f12]">
+            <button
+              className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold z-10"
+              onClick={() => {
+                setResultUrl(null)
+                setCapturedUrl(null)
+                setIsCorrupted(false)
+                setServerError(false)
+                setResultQr(null)
+              }}
+              aria-label="close result"
+            >
+              ×
+            </button>
             <img
-              className="absolute bottom-3 right-3 max-w-[160px] rounded-[10px] border border-white/40 shadow-md"
-              src={capturedUrl}
-              alt="capture"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' }}
+              src={resultUrl}
+              alt="sofubi result"
             />
-          )}
-          {(isCorrupted || serverError) && !isLoading && (
-            <div className="absolute inset-0 w-full h-full grid place-items-center gap-3 p-4 text-center bg-[rgba(0,0,0,0.6)] text-white">
-              <p className="text-[12px] m-0">生成できませんでした。もう一度お試しください。</p>
-              <button
-                className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
-                onClick={handleTransform}
-              >
-                再生成する
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+            {resultQr && (
+              <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded z-10" src={resultQr} alt="QRコード" />
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="bg-[#ffedab] rounded-[16px] p-2.5 flex flex-col gap-2 shadow-[0_8px_16px_rgba(0,0,0,0.15)]">
         <div className="flex gap-2">

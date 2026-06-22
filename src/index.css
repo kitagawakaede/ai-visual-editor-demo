@@ -16,10 +16,14 @@
 
 body {
   margin: 0;
+  background-color: #efe1ae;
 }
 
 #root {
   width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
 }
 
 h1,

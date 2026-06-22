@@ -27,8 +27,10 @@ function App() {
     <div className="w-full text-[#2a1905] leading-[1.4]" style={{ minHeight: '100vh', backgroundColor: '#efe1ae' }}>
       <div
         className="w-full px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
-        style={{ maxWidth: '440px', minHeight: '100vh', margin: '0 auto' }}
         style={{
+          maxWidth: '440px',
+          minHeight: '100vh',
+          margin: '0 auto',
           backgroundColor: '#fcc800',
           backgroundImage: `url(${spBackground})`,
           backgroundRepeat: 'no-repeat',

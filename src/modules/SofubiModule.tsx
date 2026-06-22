@@ -197,7 +197,7 @@ export function SofubiModule() {
           </div>
         )}
         {resultUrl && !isLoading && !isCorrupted && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0f0f12]">
+          <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.55)]">
             <button
               className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold z-10"
               onClick={() => {

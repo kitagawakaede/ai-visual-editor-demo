@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-expect-error external import via CDN
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.0'
 import { compressImage } from './image'
 
@@ -46,8 +46,8 @@ export async function generateQrDataUrl(text: string): Promise<string> {
     throw new Error('QR用データが長すぎます（URLを短縮する必要があります）')
   }
   try {
-    // @ts-ignore external import via CDN
-    const mod = (await import(/* @vite-ignore */ 'https://esm.sh/qrcode@1.5.3')) as any
+    // @ts-expect-error external import via CDN
+    const mod = (await import(/* @vite-ignore */ 'https://esm.sh/qrcode@1.5.3')) as { toDataURL?: (text: string, opts: unknown) => Promise<string>; default?: { toDataURL?: (text: string, opts: unknown) => Promise<string> } }
     const toDataURL = mod?.toDataURL ?? mod?.default?.toDataURL
     if (!toDataURL) throw new Error('QRモジュールの読み込みに失敗しました')
     const dataUrl = await toDataURL(text, { margin: 1, width: 180 })

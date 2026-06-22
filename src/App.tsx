@@ -24,12 +24,13 @@ function App() {
   const [tab, setTab] = useState<Tab>('tryon')
 
   return (
+    <div style={{ width: '100vw', display: 'flex', justifyContent: 'center' }}>
       <div
         className="px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
         style={{
           width: '440px',
           minHeight: '100vh',
-          marginLeft: 'calc(50vw - 228px)',
+          flexShrink: 0,
           backgroundColor: '#fcc800',
           backgroundImage: `url(${spBackground})`,
           backgroundRepeat: 'no-repeat',
@@ -79,6 +80,7 @@ function App() {
           {tab === 'timeslip' && <ComingSoonModule />}
         </div>
       </div>
+    </div>
   )
 }
 

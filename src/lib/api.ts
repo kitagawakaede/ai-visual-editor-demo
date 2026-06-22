@@ -8,6 +8,7 @@ export async function requestOpenAIImageEdit(
   imageBlob: Blob,
   refBlob?: Blob,
   model = 'gpt-image-1',
+  size = '1024x1024',
 ): Promise<{ url: string; base64?: string }> {
   if (!OPENAI_KEY) {
     throw new Error('VITE_OPENAI_API_KEY を設定してください')
@@ -40,7 +41,7 @@ export async function requestOpenAIImageEdit(
   }
   formData.append('prompt', prompt)
   formData.append('n', '1')
-  formData.append('size', '1024x1024')
+  formData.append('size', size)
 
   console.log('openai:image-edit:start', { model, promptLen: prompt.length, hasRef: Boolean(refBlob) })
 

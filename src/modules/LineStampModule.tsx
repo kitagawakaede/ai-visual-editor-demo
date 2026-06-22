@@ -238,7 +238,7 @@ export function LineStampModule() {
             >
               ×
             </button>
-            <img className="max-w-full max-h-full object-contain" src={resultUrl} alt="stamp result" />
+            <img style={{ width: '100%', height: '100%', objectFit: 'contain' }} src={resultUrl} alt="stamp result" />
             {resultQr && (
               <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={resultQr} alt="QRコード" />
             )}

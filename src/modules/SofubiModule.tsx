@@ -114,7 +114,7 @@ export function SofubiModule() {
     try {
       const refBlob = await getRefBlob()
       const paddedBlob = await padImageForFullBody(capturedBlob)
-      const result = await requestOpenAIImageEdit(SOFUBI_PROMPT, paddedBlob, refBlob)
+      const result = await requestOpenAIImageEdit(SOFUBI_PROMPT, paddedBlob, refBlob, 'gpt-image-1', '1024x1536')
       // normalizeImageToSize はキャプチャの3:4比率にcropするため使わない
       // ソフビは生成された正方形画像をそのまま表示する
       let rawBlob: Blob | null = null
@@ -211,7 +211,7 @@ export function SofubiModule() {
             >
               ×
             </button>
-            <img className="max-w-full max-h-full object-contain" src={resultUrl} alt="sofubi result" />
+            <img style={{ width: '100%', height: '100%', objectFit: 'contain' }} src={resultUrl} alt="sofubi result" />
             {resultQr && (
               <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={resultQr} alt="QRコード" />
             )}

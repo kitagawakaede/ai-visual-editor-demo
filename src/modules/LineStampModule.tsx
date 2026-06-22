@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { captureStill, normalizeImageToSize, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
+import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
 import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
@@ -57,14 +57,12 @@ async function overlayTextOnStamp(blob: Blob, text: string): Promise<Blob> {
   }
 }
 
-type ImageSize = { width: number; height: number }
 
 export function LineStampModule() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
-  const [captureSize, setCaptureSize] = useState<ImageSize | null>(null)
   const [selectedText, setSelectedText] = useState<string>(STAMP_TEXTS[0])
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultQr, setResultQr] = useState<string | null>(null)
@@ -115,7 +113,6 @@ export function LineStampModule() {
       const shot = await captureStill(videoRef.current)
       setCapturedUrl(shot.url)
       setCapturedBlob(shot.blob)
-      setCaptureSize({ width: shot.width, height: shot.height })
       setStatus('撮影完了。テキストを選んで「スタンプ作成」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -156,8 +153,8 @@ export function LineStampModule() {
         rawBlob = await (await fetch(result.url)).blob()
       }
       if (rawBlob) {
-        const normalized = await normalizeImageToSize(rawBlob, captureSize?.width, captureSize?.height)
-        const withText = await overlayTextOnStamp(normalized, selectedText)
+        // スタンプも正方形のまま表示（cropしない）
+        const withText = await overlayTextOnStamp(rawBlob, selectedText)
         const displayUrl = URL.createObjectURL(withText)
         setResultUrl(displayUrl)
         uploadToSupabase(withText, 'stamp', { compress: true })

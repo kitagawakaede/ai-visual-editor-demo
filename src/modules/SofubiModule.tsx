@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { captureStill, normalizeImageToSize, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
+import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
 import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
@@ -38,14 +38,12 @@ async function padImageForFullBody(blob: Blob): Promise<Blob> {
   }
 }
 
-type ImageSize = { width: number; height: number }
 
 export function SofubiModule() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
-  const [captureSize, setCaptureSize] = useState<ImageSize | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultQr, setResultQr] = useState<string | null>(null)
   const [isCorrupted, setIsCorrupted] = useState(false)
@@ -95,7 +93,6 @@ export function SofubiModule() {
       const shot = await captureStill(videoRef.current)
       setCapturedUrl(shot.url)
       setCapturedBlob(shot.blob)
-      setCaptureSize({ width: shot.width, height: shot.height })
       setStatus('撮影完了。「変身する」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -118,26 +115,22 @@ export function SofubiModule() {
       const refBlob = await getRefBlob()
       const paddedBlob = await padImageForFullBody(capturedBlob)
       const result = await requestOpenAIImageEdit(SOFUBI_PROMPT, paddedBlob, refBlob)
+      // normalizeImageToSize はキャプチャの3:4比率にcropするため使わない
+      // ソフビは生成された正方形画像をそのまま表示する
+      let rawBlob: Blob | null = null
       if (result.base64 && isValidBase64Image(result.base64)) {
-        const blob = await base64ToBlob(result.base64, 'image/jpeg')
-        const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
-        const displayUrl = URL.createObjectURL(normalized)
-        setResultUrl(displayUrl)
-        uploadToSupabase(normalized, 'sofubi', { compress: true })
-          .then((url) => generateQrDataUrl(url))
-          .then(setResultQr)
-          .catch((err) => logError('sofubi-qr', err))
-        setStatus('ソフビ変身完了')
+        rawBlob = await base64ToBlob(result.base64, 'image/jpeg')
       } else if (result.base64 && !isValidBase64Image(result.base64)) {
         setIsCorrupted(true)
         setStatus('生成できませんでした。もう一度生成してください。')
         logError('sofubi-invalid-base64', result.base64)
       } else {
-        const sourceBlob = await (await fetch(result.url)).blob()
-        const normalized = await normalizeImageToSize(sourceBlob, captureSize?.width, captureSize?.height)
-        const displayUrl = URL.createObjectURL(normalized)
+        rawBlob = await (await fetch(result.url)).blob()
+      }
+      if (rawBlob) {
+        const displayUrl = URL.createObjectURL(rawBlob)
         setResultUrl(displayUrl)
-        uploadToSupabase(normalized, 'sofubi', { compress: true })
+        uploadToSupabase(rawBlob, 'sofubi', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setResultQr)
           .catch((err) => logError('sofubi-qr', err))

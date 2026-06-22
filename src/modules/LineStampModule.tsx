@@ -8,6 +8,55 @@ import { STAMP_TEXTS } from '../constants/stamps'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { OmikujiOverlay } from '../components/OmikujiOverlay'
 
+const stampRefUrl = new URL('../assets/ref_stamp.png', import.meta.url).href
+
+async function overlayTextOnStamp(blob: Blob, text: string): Promise<Blob> {
+  const imgUrl = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = () => reject(new Error('画像読み込みに失敗しました'))
+      image.src = imgUrl
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = img.height
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(img, 0, 0)
+
+    const fontSize = Math.round(img.width * 0.11)
+    ctx.font = `bold ${fontSize}px "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'bottom'
+    const x = img.width / 2
+    const y = img.height - Math.round(img.height * 0.04)
+
+    // 白縁取り
+    ctx.strokeStyle = 'white'
+    ctx.lineWidth = fontSize * 0.35
+    ctx.lineJoin = 'round'
+    ctx.strokeText(text, x, y)
+
+    // カラフルなグラデーション塗り
+    const grad = ctx.createLinearGradient(0, y - fontSize, 0, y)
+    grad.addColorStop(0, '#ff8fab')
+    grad.addColorStop(1, '#e0003c')
+    ctx.fillStyle = grad
+    ctx.fillText(text, x, y)
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => { if (b) resolve(b); else reject(new Error('テキスト合成に失敗しました')) },
+        'image/jpeg',
+        0.92,
+      )
+    })
+  } finally {
+    URL.revokeObjectURL(imgUrl)
+  }
+}
+
 type ImageSize = { width: number; height: number }
 
 export function LineStampModule() {
@@ -23,7 +72,16 @@ export function LineStampModule() {
   const [serverError, setServerError] = useState(false)
   const [status, setStatus] = useState('写真を撮影してスタンプにするテキストを選んでください')
   const [isLoading, setIsLoading] = useState(false)
+  const refBlobCache = useRef<Blob | null>(null)
   const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
+
+  const getRefBlob = async () => {
+    if (refBlobCache.current) return refBlobCache.current
+    const res = await fetch(stampRefUrl)
+    const blob = await res.blob()
+    refBlobCache.current = blob
+    return blob
+  }
 
   useEffect(() => {
     let active = true
@@ -84,28 +142,25 @@ export function LineStampModule() {
     setIsLoading(true)
     setStatus('スタンプ生成中...')
     try {
-      const prompt = LINE_STAMP_PROMPT_BASE.replace('{TEXT}', selectedText)
-      const result = await requestNanoBanana(prompt, capturedBlob)
+      const refBlob = await getRefBlob()
+      const result = await requestNanoBanana(LINE_STAMP_PROMPT_BASE, capturedBlob, refBlob)
+      let rawBlob: Blob | null = null
       if (result.base64 && isValidBase64Image(result.base64)) {
-        const blob = await base64ToBlob(result.base64, 'image/jpeg')
-        const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
-        const displayUrl = URL.createObjectURL(normalized)
-        setResultUrl(displayUrl)
-        uploadToSupabase(normalized, 'stamp', { compress: true })
-          .then((url) => generateQrDataUrl(url))
-          .then(setResultQr)
-          .catch((err) => logError('stamp-qr', err))
-        setStatus('スタンプ生成完了')
+        rawBlob = await base64ToBlob(result.base64, 'image/jpeg')
       } else if (result.base64 && !isValidBase64Image(result.base64)) {
         setIsCorrupted(true)
         setStatus('生成できませんでした。もう一度お試しください。')
         logError('stamp-invalid-base64', result.base64)
+        return
       } else {
-        const sourceBlob = await (await fetch(result.url)).blob()
-        const normalized = await normalizeImageToSize(sourceBlob, captureSize?.width, captureSize?.height)
-        const displayUrl = URL.createObjectURL(normalized)
+        rawBlob = await (await fetch(result.url)).blob()
+      }
+      if (rawBlob) {
+        const normalized = await normalizeImageToSize(rawBlob, captureSize?.width, captureSize?.height)
+        const withText = await overlayTextOnStamp(normalized, selectedText)
+        const displayUrl = URL.createObjectURL(withText)
         setResultUrl(displayUrl)
-        uploadToSupabase(normalized, 'stamp', { compress: true })
+        uploadToSupabase(withText, 'stamp', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setResultQr)
           .catch((err) => logError('stamp-qr', err))

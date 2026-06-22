@@ -7,6 +7,8 @@ import { SOFUBI_PROMPT } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { OmikujiOverlay } from '../components/OmikujiOverlay'
 
+const sofubiRefUrl = new URL('../assets/ref_sofubi.png', import.meta.url).href
+
 type ImageSize = { width: number; height: number }
 
 export function SofubiModule() {
@@ -21,7 +23,16 @@ export function SofubiModule() {
   const [serverError, setServerError] = useState(false)
   const [status, setStatus] = useState('写真を撮影してください')
   const [isLoading, setIsLoading] = useState(false)
+  const refBlobCache = useRef<Blob | null>(null)
   const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
+
+  const getRefBlob = async () => {
+    if (refBlobCache.current) return refBlobCache.current
+    const res = await fetch(sofubiRefUrl)
+    const blob = await res.blob()
+    refBlobCache.current = blob
+    return blob
+  }
 
   useEffect(() => {
     let active = true
@@ -75,7 +86,8 @@ export function SofubiModule() {
     setIsLoading(true)
     setStatus('変身中...')
     try {
-      const result = await requestNanoBanana(SOFUBI_PROMPT, capturedBlob)
+      const refBlob = await getRefBlob()
+      const result = await requestNanoBanana(SOFUBI_PROMPT, capturedBlob, refBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
         const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)

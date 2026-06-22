@@ -53,11 +53,11 @@ function App() {
               <p className="text-[12px] font-bold">テキストレンズ</p>
               <p className="font-['Bebas_Neue'] text-[22px] tracking-[0.08em]">TRY ON CHARENGE</p>
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="flex flex-wrap justify-center gap-1.5">
               {TABS.map(({ key, label }) => (
                 <button
                   key={key}
-                  className={`border-2 rounded-[8px] py-2 px-1.5 text-[11px] font-medium transition active:translate-y-[1px] ${
+                  className={`w-[calc(33.333%-6px)] border-2 rounded-[8px] py-2 px-1.5 text-[11px] font-medium transition active:translate-y-[1px] ${
                     tab === key
                       ? 'bg-[#7eb8ff] text-[#0b1b3a] border-transparent'
                       : 'bg-transparent border-[#2a1905]'

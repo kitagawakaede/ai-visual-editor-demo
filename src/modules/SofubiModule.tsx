@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
-import { requestNanoBanana, NANO_KEY } from '../lib/api'
+import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
 import { SOFUBI_PROMPT } from '../constants/prompts'
@@ -21,8 +21,9 @@ async function padImageForFullBody(blob: Blob): Promise<Blob> {
       image.src = imgUrl
     })
     const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = Math.round(img.height * 1.8)
+    const size = Math.max(img.width, img.height)
+    canvas.width = size
+    canvas.height = size
     const ctx = canvas.getContext('2d')!
     ctx.fillStyle = '#f5eedc'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -114,7 +115,7 @@ export function SofubiModule() {
     try {
       const refBlob = await getRefBlob()
       const paddedBlob = await padImageForFullBody(capturedBlob)
-      const result = await requestNanoBanana(SOFUBI_PROMPT, paddedBlob, refBlob)
+      const result = await requestOpenAIImageEdit(SOFUBI_PROMPT, paddedBlob, refBlob, 'gpt-image-1.5', '1024x1536')
       // normalizeImageToSize はキャプチャの3:4比率にcropするため使わない
       // ソフビは生成された正方形画像をそのまま表示する
       let rawBlob: Blob | null = null
@@ -240,8 +241,8 @@ export function SofubiModule() {
           </button>
         </div>
         <p className="text-[11px] text-[#3b2b12]">{status}</p>
-        {!NANO_KEY && (
-          <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>
+        {!OPENAI_KEY && (
+          <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_OPENAI_API_KEY を設定してください。</p>
         )}
       </div>
     </section>

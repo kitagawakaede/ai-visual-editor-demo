@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=M+PLUS+1p:wght@400;500;700;800&display=swap');
+@import "tailwindcss";
 
 :root {
   font-family: 'M PLUS 1p', sans-serif;
@@ -16,6 +17,14 @@
 
 body {
   margin: 0;
+  background-color: #efe1ae;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  color: #2a1905;
+  line-height: 1.4;
 }
 
 h1,

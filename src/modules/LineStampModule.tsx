@@ -23,58 +23,6 @@ const STAMP_REF_URLS: Record<string, string> = {
   '考え中…':               new URL('../assets/スタンプ/image copy 11.png', import.meta.url).href,
 }
 
-async function overlayTextOnStamp(blob: Blob, text: string): Promise<Blob> {
-  const imgUrl = URL.createObjectURL(blob)
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const image = new Image()
-      image.onload = () => resolve(image)
-      image.onerror = () => reject(new Error('画像読み込みに失敗しました'))
-      image.src = imgUrl
-    })
-    const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(img, 0, 0)
-
-    const fontFamily = '"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", sans-serif'
-    const maxTextWidth = img.width * 0.88
-    let fontSize = Math.round(img.width * 0.11)
-    ctx.font = `bold ${fontSize}px ${fontFamily}`
-    while (fontSize > 16 && ctx.measureText(text).width + fontSize * 0.35 > maxTextWidth) {
-      fontSize -= 2
-      ctx.font = `bold ${fontSize}px ${fontFamily}`
-    }
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'bottom'
-    const x = img.width / 2
-    const y = img.height - Math.round(img.height * 0.04)
-
-    // 白縁取り
-    ctx.strokeStyle = 'white'
-    ctx.lineWidth = fontSize * 0.35
-    ctx.lineJoin = 'round'
-    ctx.strokeText(text, x, y)
-
-    // カラフルなグラデーション塗り
-    const grad = ctx.createLinearGradient(0, y - fontSize, 0, y)
-    grad.addColorStop(0, '#ff8fab')
-    grad.addColorStop(1, '#e0003c')
-    ctx.fillStyle = grad
-    ctx.fillText(text, x, y)
-
-    return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (b) => { if (b) resolve(b); else reject(new Error('テキスト合成に失敗しました')) },
-        'image/jpeg',
-        0.92,
-      )
-    })
-  } finally {
-    URL.revokeObjectURL(imgUrl)
-  }
-}
 
 
 export function LineStampModule() {

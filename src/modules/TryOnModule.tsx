@@ -59,14 +59,15 @@ export function TryOnModule() {
     audioChunks.current = []
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     audioStreamRef.current = stream
-    const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+    const mimeType = ['audio/webm', 'audio/mp4', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported(t)) ?? ''
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
     recorderRef.current = recorder
     recorder.ondataavailable = (evt) => {
       if (evt.data.size > 0) audioChunks.current.push(evt.data)
     }
     recorder.onstop = async () => {
       setIsRecording(false)
-      const blob = new Blob(audioChunks.current, { type: 'audio/webm' })
+      const blob = new Blob(audioChunks.current, { type: mimeType || recorder.mimeType })
       try {
         setStatus('Whisper で文字起こし中...')
         const text = await transcribeWithWhisper(blob)

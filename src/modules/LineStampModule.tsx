@@ -3,12 +3,25 @@ import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints } from
 import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
-import { LINE_STAMP_PROMPT_BASE } from '../constants/prompts'
+import { STAMP_PROMPT_MAP, LINE_STAMP_PROMPT_BASE } from '../constants/prompts'
 import { STAMP_TEXTS } from '../constants/stamps'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { OmikujiOverlay } from '../components/OmikujiOverlay'
 
-const stampRefUrl = new URL('../assets/ref_stamp.png', import.meta.url).href
+const STAMP_REF_URLS: Record<string, string> = {
+  'ありがとうございます！': new URL('../assets/スタンプ/image.png', import.meta.url).href,
+  '承知しました':           new URL('../assets/スタンプ/image copy.png', import.meta.url).href,
+  'おはようございます':     new URL('../assets/スタンプ/image copy 2.png', import.meta.url).href,
+  '了解です！':             new URL('../assets/スタンプ/image copy 3.png', import.meta.url).href,
+  '確認します':             new URL('../assets/スタンプ/image copy 4.png', import.meta.url).href,
+  '少々お待ちください':     new URL('../assets/スタンプ/image copy 5.png', import.meta.url).href,
+  'おつかれさまです':       new URL('../assets/スタンプ/image copy 6.png', import.meta.url).href,
+  'お願いします！':         new URL('../assets/スタンプ/image copy 7.png', import.meta.url).href,
+  '今向かいます':           new URL('../assets/スタンプ/image copy 8.png', import.meta.url).href,
+  'すみません！':           new URL('../assets/スタンプ/image copy 9.png', import.meta.url).href,
+  '完了しました！':         new URL('../assets/スタンプ/image copy 10.png', import.meta.url).href,
+  '考え中…':               new URL('../assets/スタンプ/image copy 11.png', import.meta.url).href,
+}
 
 async function overlayTextOnStamp(blob: Blob, text: string): Promise<Blob> {
   const imgUrl = URL.createObjectURL(blob)
@@ -25,8 +38,14 @@ async function overlayTextOnStamp(blob: Blob, text: string): Promise<Blob> {
     const ctx = canvas.getContext('2d')!
     ctx.drawImage(img, 0, 0)
 
-    const fontSize = Math.round(img.width * 0.11)
-    ctx.font = `bold ${fontSize}px "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", sans-serif`
+    const fontFamily = '"Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", sans-serif'
+    const maxTextWidth = img.width * 0.88
+    let fontSize = Math.round(img.width * 0.11)
+    ctx.font = `bold ${fontSize}px ${fontFamily}`
+    while (fontSize > 16 && ctx.measureText(text).width + fontSize * 0.35 > maxTextWidth) {
+      fontSize -= 2
+      ctx.font = `bold ${fontSize}px ${fontFamily}`
+    }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'bottom'
     const x = img.width / 2
@@ -70,14 +89,14 @@ export function LineStampModule() {
   const [serverError, setServerError] = useState(false)
   const [status, setStatus] = useState('写真を撮影してスタンプにするテキストを選んでください')
   const [isLoading, setIsLoading] = useState(false)
-  const refBlobCache = useRef<Blob | null>(null)
+  const refBlobCache = useRef<Map<string, Blob>>(new Map())
   const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
-  const getRefBlob = async () => {
-    if (refBlobCache.current) return refBlobCache.current
-    const res = await fetch(stampRefUrl)
-    const blob = await res.blob()
-    refBlobCache.current = blob
+  const getCroppedRefBlob = async (text: string): Promise<Blob> => {
+    if (refBlobCache.current.has(text)) return refBlobCache.current.get(text)!
+    const url = STAMP_REF_URLS[text] ?? Object.values(STAMP_REF_URLS)[0]
+    const blob = await fetch(url).then((r) => r.blob())
+    refBlobCache.current.set(text, blob)
     return blob
   }
 
@@ -139,8 +158,9 @@ export function LineStampModule() {
     setIsLoading(true)
     setStatus('スタンプ生成中...')
     try {
-      const refBlob = await getRefBlob()
-      const result = await requestOpenAIImageEdit(LINE_STAMP_PROMPT_BASE, capturedBlob, refBlob)
+      const refBlob = await getCroppedRefBlob(selectedText)
+      const prompt = STAMP_PROMPT_MAP[selectedText] ?? LINE_STAMP_PROMPT_BASE
+      const result = await requestOpenAIImageEdit(prompt, capturedBlob, refBlob)
       let rawBlob: Blob | null = null
       if (result.base64 && isValidBase64Image(result.base64)) {
         rawBlob = await base64ToBlob(result.base64, 'image/jpeg')
@@ -153,11 +173,10 @@ export function LineStampModule() {
         rawBlob = await (await fetch(result.url)).blob()
       }
       if (rawBlob) {
-        // スタンプも正方形のまま表示（cropしない）
-        const withText = await overlayTextOnStamp(rawBlob, selectedText)
-        const displayUrl = URL.createObjectURL(withText)
+        // BプランでAIがテキストを生成するためオーバーレイ不要
+        const displayUrl = URL.createObjectURL(rawBlob)
         setResultUrl(displayUrl)
-        uploadToSupabase(withText, 'stamp', { compress: true })
+        uploadToSupabase(rawBlob, 'stamp', { compress: true })
           .then((url) => generateQrDataUrl(url))
           .then(setResultQr)
           .catch((err) => logError('stamp-qr', err))

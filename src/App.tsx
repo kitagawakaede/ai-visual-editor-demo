@@ -24,14 +24,10 @@ function App() {
   const [tab, setTab] = useState<Tab>('tryon')
 
   return (
+    <div className="min-h-screen w-full bg-[#efe1ae] flex justify-center text-[#2a1905] leading-[1.4]">
       <div
-        className="px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
+        className="w-full max-w-[440px] min-h-screen px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
         style={{
-          position: 'relative',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '440px',
-          minHeight: '100vh',
           backgroundColor: '#fcc800',
           backgroundImage: `url(${spBackground})`,
           backgroundRepeat: 'no-repeat',
@@ -61,7 +57,7 @@ function App() {
               {TABS.map(({ key, label }) => (
                 <button
                   key={key}
-                  className={`w-[calc(33.333%-6px)] border-2 rounded-[8px] py-2 px-1.5 text-[11px] font-medium transition active:translate-y-[1px] ${
+                  className={`w-[calc(33.333%-6px)] border-2 rounded-[8px] py-1.5 px-1 text-[10px] font-medium whitespace-nowrap overflow-hidden transition active:translate-y-[1px] ${
                     tab === key
                       ? 'bg-[#7eb8ff] text-[#0b1b3a] border-transparent'
                       : 'bg-transparent border-[#2a1905]'
@@ -81,6 +77,7 @@ function App() {
           {tab === 'timeslip' && <ComingSoonModule />}
         </div>
       </div>
+    </div>
   )
 }
 

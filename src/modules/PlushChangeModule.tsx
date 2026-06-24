@@ -1,38 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { captureStill, normalizeImageToSize, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
-import { requestNanoBanana, NANO_KEY } from '../lib/api'
+import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
-import { plushChangePromptBase, plushChangePromptWoolFelting, plushChangePromptPixelArt, plushChangePromptFlatHair } from '../constants/prompts'
+import { plushChangePromptBase } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { OmikujiOverlay } from '../components/OmikujiOverlay'
 
 type ImageSize = { width: number; height: number }
-type PlushOption = { id: string; label: string; description: string; image: string; prompt: string }
 
-const plushOptions: PlushOption[] = [
-  {
-    id: 'plushA',
-    label: 'ぬいぐるみA',
-    description: '丸みのある可愛いシルエットのぬいぐるみタイプ',
-    image: new URL('../assets/スクリーンショット 2025-12-13 16.03.58.png', import.meta.url).href,
-    prompt: plushChangePromptWoolFelting,
-  },
-  {
-    id: 'plushB',
-    label: 'ぬいぐるみB',
-    description: '細部がはっきりしたフォルムのぬいぐるみタイプ',
-    image: new URL('../assets/スクリーンショット 2025-12-13 12.36.50.png', import.meta.url).href,
-    prompt: plushChangePromptPixelArt,
-  },
-  {
-    id: 'plushC',
-    label: 'ぬいぐるみC',
-    description: 'ふんわり質感のディフォルメぬいぐるみタイプ',
-    image: new URL('../assets/スクリーンショット 2025-12-13 12.05.19.png', import.meta.url).href,
-    prompt: plushChangePromptFlatHair,
-  },
-]
+const plushRefUrl = new URL('../assets/image copy 2.png', import.meta.url).href
 
 export function PlushChangeModule() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -42,12 +19,11 @@ export function PlushChangeModule() {
   const [captureSize, setCaptureSize] = useState<ImageSize | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultQr, setResultQr] = useState<string | null>(null)
-  const [selected, setSelected] = useState<PlushOption>(plushOptions[0])
   const [isCorrupted, setIsCorrupted] = useState(false)
   const [serverError, setServerError] = useState(false)
-  const [status, setStatus] = useState('写真を撮影して、変身先のぬいぐるみを選んでください')
+  const [status, setStatus] = useState('シャッターボタンを押して撮影してください')
   const [isLoading, setIsLoading] = useState(false)
-  const refCache = useRef<Record<string, Blob>>({})
+  const refCache = useRef<Blob | null>(null)
   const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
@@ -83,20 +59,16 @@ export function PlushChangeModule() {
       setCapturedUrl(shot.url)
       setCapturedBlob(shot.blob)
       setCaptureSize({ width: shot.width, height: shot.height })
-      setStatus('撮影完了。ぬいぐるみを選んで「変身する」を押してください')
+      setStatus('撮影完了。「変身」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
     }
   }
 
-  const buildPrompt = (option: PlushOption) =>
-    `${option.prompt || plushChangePromptBase} 選択したタイプ: ${option.label}。特徴: ${option.description}。`
-
-  const getRefBlob = async (option: PlushOption) => {
-    if (refCache.current[option.id]) return refCache.current[option.id]
-    const res = await fetch(option.image)
-    const blob = await res.blob()
-    refCache.current[option.id] = blob
+  const getRefBlob = async () => {
+    if (refCache.current) return refCache.current
+    const blob = await fetch(plushRefUrl).then((r) => r.blob())
+    refCache.current = blob
     return blob
   }
 
@@ -112,8 +84,8 @@ export function PlushChangeModule() {
     setIsLoading(true)
     setStatus('変身中...')
     try {
-      const refBlob = await getRefBlob(selected)
-      const result = await requestNanoBanana(buildPrompt(selected), capturedBlob, refBlob)
+      const refBlob = await getRefBlob()
+      const result = await requestOpenAIImageEdit(plushChangePromptBase, capturedBlob, refBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
         const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
@@ -248,24 +220,8 @@ export function PlushChangeModule() {
             {isLoading ? '変身中...' : '変身'}
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-0 place-items-center pb-1">
-          {plushOptions.map((opt) => (
-            <button
-              key={opt.id}
-              className={`min-w-[86px] rounded-[12px] bg-white p-1 flex flex-col gap-1 items-center ${
-                selected.id === opt.id ? 'bg-[#e0f1ff]' : ''
-              }`}
-              onClick={() => setSelected(opt)}
-              aria-pressed={selected.id === opt.id}
-            >
-              <img className="w-[72px] h-[72px] object-cover rounded-[10px] border border-[#c9c9c9]" src={opt.image} alt={opt.label} />
-              <div className="text-[10px] font-bold">{opt.label}</div>
-            </button>
-          ))}
-        </div>
-
         <p className="text-[11px] text-[#3b2b12]">{status}</p>
-        {!NANO_KEY && <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>}
+        {!OPENAI_KEY && <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_OPENAI_API_KEY を設定してください。</p>}
       </div>
     </section>
   )

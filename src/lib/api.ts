@@ -7,7 +7,7 @@ export async function requestOpenAIImageEdit(
   prompt: string,
   imageBlob: Blob,
   refBlob?: Blob,
-  model = 'gpt-image-1',
+  model = 'gpt-image-1.5',
   size = '1024x1024',
 ): Promise<{ url: string; base64?: string }> {
   if (!OPENAI_KEY) {

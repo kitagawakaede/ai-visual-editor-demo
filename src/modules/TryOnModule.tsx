@@ -5,7 +5,7 @@ import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
 import { tryOnPromptBase } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
-import { OmikujiOverlay } from '../components/OmikujiOverlay'
+import { WaitingGame } from '../components/WaitingGame'
 
 type ImageSize = { width: number; height: number }
 
@@ -26,7 +26,7 @@ export function TryOnModule() {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const audioStreamRef = useRef<MediaStream | null>(null)
   const audioChunks = useRef<Blob[]>([])
-  const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
+  const { omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
     let active = true
@@ -148,6 +148,7 @@ export function TryOnModule() {
       logError('tryon-error', err)
     } finally {
       setIsLoading(false)
+      resetOmikuji()
     }
   }
 
@@ -155,9 +156,9 @@ export function TryOnModule() {
     <section className="flex flex-col gap-2.5">
       <div className="flex items-start justify-between gap-2.5">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold text-[#1f78c8]">AI試着</p>
-          <p className="text-[16px] font-extrabold leading-[1.3]">自分の洋服の色を変えてみよう！</p>
-          <p className="text-[10px] text-[#3b2b12]">マイク ▶︎ 撮影 ▶︎ お着替えの3ステップで試着を体験できます。</p>
+          <p className="text-[10px] font-bold text-black">こんな自分になってみたいかも…！</p>
+          <p className="text-[16px] font-extrabold leading-[1.3] text-black">なりたい自分になれる！</p>
+          <p className="text-[10px] text-black">シャッターボタン ▶︎ なりたい自分になれる！</p>
         </div>
         <span
           className={`border-2 text-[11px] font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap ${
@@ -178,7 +179,7 @@ export function TryOnModule() {
           muted
           playsInline
         />
-        <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
+        <WaitingGame visible={omikujiVisible} onClose={resetOmikuji} />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
             変身中...

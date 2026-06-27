@@ -3,21 +3,28 @@ import { TryOnModule } from './modules/TryOnModule'
 import { PlushChangeModule } from './modules/PlushChangeModule'
 import { SofubiModule } from './modules/SofubiModule'
 import { LineStampModule } from './modules/LineStampModule'
-import { ComingSoonModule } from './modules/ComingSoonModule'
+import { TimeSlipModule } from './modules/TimeSlipModule'
 
 type Tab = 'tryon' | 'stamp' | 'plush-change' | 'sofubi' | 'timeslip'
 
-const spBackground = new URL('./assets/UI/sp_bg.png', import.meta.url).href
-const wearLogo = new URL('./assets/UI/wear_am_i_logo-01 1.png', import.meta.url).href
-const tclLogo = new URL('./assets/UI/TCL_logo.png', import.meta.url).href
-const titleFrame = new URL('./assets/UI/Frame 2.png', import.meta.url).href
+const spBackground = new URL('./assets/UI/UI2/image.png', import.meta.url).href
+const wearLogo = new URL('./assets/UI/UI2/wear_am_i_logo-01 1.png', import.meta.url).href
+const tclLogo = new URL('./assets/UI/UI2/TCL_logo.png', import.meta.url).href
+const titleFrame = new URL('./assets/UI/UI2/image copy.png', import.meta.url).href
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'tryon', label: 'AI試着' },
-  { key: 'stamp', label: 'LINEスタンプ' },
-  { key: 'plush-change', label: 'ぬいぐるみ作成' },
-  { key: 'sofubi', label: 'ソフビ' },
-  { key: 'timeslip', label: 'タイムスリップ' },
+// 機能切り替えボタンのアイコン（src/assets/UI/UI2/button/）
+const iconStamp = new URL('./assets/UI/UI2/button/image.png', import.meta.url).href
+const iconToy = new URL('./assets/UI/UI2/button/image copy.png', import.meta.url).href
+const iconFigure = new URL('./assets/UI/UI2/button/image copy 2.png', import.meta.url).href
+const iconAlbum = new URL('./assets/UI/UI2/button/image copy 3.png', import.meta.url).href
+const iconTryon = new URL('./assets/UI/UI2/button/image copy 4.png', import.meta.url).href
+
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'stamp', label: 'LINE STAMP', icon: iconStamp },
+  { key: 'plush-change', label: 'TOY', icon: iconToy },
+  { key: 'sofubi', label: 'FIGURE', icon: iconFigure },
+  { key: 'timeslip', label: 'ALBUM', icon: iconAlbum },
+  { key: 'tryon', label: 'AI 試着', icon: iconTryon },
 ]
 
 function App() {
@@ -28,11 +35,11 @@ function App() {
       <div
         className="w-full max-w-[440px] min-h-screen px-4 pt-4 pb-12 shadow-[0_18px_30px_rgba(0,0,0,0.15)]"
         style={{
-          backgroundColor: '#fcc800',
+          backgroundColor: '#7ec8ec',
           backgroundImage: `url(${spBackground})`,
           backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center 100px',
-          backgroundSize: '440px auto',
+          backgroundPosition: 'center top',
+          backgroundSize: 'cover',
         }}
       >
         <div className="flex flex-col gap-3.5">
@@ -53,18 +60,24 @@ function App() {
               <p className="text-[12px] font-bold">テキストレンズ</p>
               <p className="font-['Bebas_Neue'] text-[22px] tracking-[0.08em]">TRY ON CHARENGE</p>
             </div>
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {TABS.map(({ key, label }) => (
+            <div className="flex justify-center gap-1.5">
+              {TABS.map(({ key, label, icon }) => (
                 <button
                   key={key}
-                  className={`w-[calc(33.333%-6px)] border-2 rounded-[8px] py-1.5 px-1 text-[10px] font-medium whitespace-nowrap overflow-hidden transition active:translate-y-[1px] ${
-                    tab === key
-                      ? 'bg-[#7eb8ff] text-[#0b1b3a] border-transparent'
-                      : 'bg-transparent border-[#2a1905]'
-                  }`}
+                  className="flex-1 min-w-0 flex flex-col items-center gap-1 transition active:translate-y-[1px]"
                   onClick={() => setTab(key)}
                 >
-                  {label}
+                  <div
+                    className={`relative w-full aspect-square rounded-[10px] overflow-hidden transition ${
+                      tab === key
+                        ? 'ring-[3px] ring-[#7eb8ff] shadow-[0_4px_8px_rgba(0,0,0,0.2)]'
+                        : 'ring-1 ring-black/10'
+                    }`}
+                  >
+                    <img src={icon} alt={label} className="w-full h-full object-cover block" />
+                    {/* 未選択は黒を薄く重ねて暗くする（選択中はそのまま） */}
+                    {tab !== key && <div className="absolute inset-0 bg-black/40" />}
+                  </div>
                 </button>
               ))}
             </div>
@@ -74,7 +87,7 @@ function App() {
           {tab === 'stamp' && <LineStampModule />}
           {tab === 'plush-change' && <PlushChangeModule />}
           {tab === 'sofubi' && <SofubiModule />}
-          {tab === 'timeslip' && <ComingSoonModule />}
+          {tab === 'timeslip' && <TimeSlipModule />}
         </div>
       </div>
     </div>

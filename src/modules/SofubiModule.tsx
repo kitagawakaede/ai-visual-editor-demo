@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
-import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
+import { requestOpenAIImageEdit, requestNanoBanana, OPENAI_KEY, NANO_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
-import { SOFUBI_PROMPT } from '../constants/prompts'
+import { SOFUBI_PROMPT, SOFUBI_PROMPT_NO_REF } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
-import { OmikujiOverlay } from '../components/OmikujiOverlay'
+import { WaitingGame } from '../components/WaitingGame'
 
 const sofubiRefUrl = new URL('../assets/ref_sofubi.png', import.meta.url).href
+
+// 生成エンジンはコンポーネント内の state（useGemini）でボタン切り替え。
+// 既定は OpenAI（精度重視）。デモで Gemini と比較できるようにするための切替。
 
 // 上半身写真でも全身フィギュアを生成させるため、
 // 元画像の下に80%の余白を追加してAIに「体が続く空間がある」と認識させる
@@ -51,8 +54,9 @@ export function SofubiModule() {
   const [serverError, setServerError] = useState(false)
   const [status, setStatus] = useState('写真を撮影してください')
   const [isLoading, setIsLoading] = useState(false)
+  const [useGemini, setUseGemini] = useState(false) // 既定 OpenAI。デモ比較用にボタンで切替
   const refBlobCache = useRef<Blob | null>(null)
-  const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
+  const { omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   const getRefBlob = async () => {
     if (refBlobCache.current) return refBlobCache.current
@@ -113,9 +117,16 @@ export function SofubiModule() {
     setIsLoading(true)
     setStatus('変身中...')
     try {
-      const refBlob = await getRefBlob()
-      const paddedBlob = await padImageForFullBody(capturedBlob)
-      const result = await requestOpenAIImageEdit(SOFUBI_PROMPT, paddedBlob, refBlob, 'gpt-image-1.5', '1024x1536')
+      let result
+      if (useGemini) {
+        const refBlob = await getRefBlob()
+        const paddedBlob = await padImageForFullBody(capturedBlob)
+        result = await requestNanoBanana(SOFUBI_PROMPT, paddedBlob, refBlob)
+      } else {
+        // 速度テスト: 参照画像なし・パディングなし・本人写真1枚のみ（全身化はプロンプト指示に依存）。
+        // quality:'medium'（low だと質感が落ちるため medium で精度と速度のバランスを取る）。
+        result = await requestOpenAIImageEdit(SOFUBI_PROMPT_NO_REF, capturedBlob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'medium')
+      }
       // normalizeImageToSize はキャプチャの3:4比率にcropするため使わない
       // ソフビは生成された正方形画像をそのまま表示する
       let rawBlob: Blob | null = null
@@ -143,6 +154,7 @@ export function SofubiModule() {
       logError('sofubi-error', err)
     } finally {
       setIsLoading(false)
+      resetOmikuji()
     }
   }
 
@@ -150,9 +162,9 @@ export function SofubiModule() {
     <section className="flex flex-col gap-2.5">
       <div className="flex items-start justify-between gap-2.5">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold text-[#1f78c8]">ソフビ風フィギュア</p>
-          <p className="text-[16px] font-extrabold leading-[1.3]">ソフビフィギュアになれる！</p>
-          <p className="text-[10px] text-[#3b2b12]">シャッターボタン ▶︎ 変身するを押してください。</p>
+          <p className="text-[10px] font-bold text-black">フィギュアに変身！</p>
+          <p className="text-[16px] font-extrabold leading-[1.3] text-black">フィギュアになれる！</p>
+          <p className="text-[10px] text-black">シャッターボタン ▶︎ 自分がフィギュアになれる！</p>
         </div>
         <span
           className={`border-2 text-[11px] font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap ${
@@ -173,7 +185,7 @@ export function SofubiModule() {
           muted
           playsInline
         />
-        <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
+        <WaitingGame visible={omikujiVisible} onClose={resetOmikuji} />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
             変身中...
@@ -225,6 +237,26 @@ export function SofubiModule() {
       </div>
 
       <div className="bg-[#ffedab] rounded-[16px] p-2.5 flex flex-col gap-2 shadow-[0_8px_16px_rgba(0,0,0,0.15)]">
+        {/* 生成エンジン切替（検証用） */}
+        <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#3b2b12]">
+          <span className="font-bold">エンジン:</span>
+          <div className="inline-flex rounded-full border border-[#caa94d] overflow-hidden">
+            <button
+              className={`px-2.5 py-1 font-bold ${useGemini ? 'bg-[#111] text-white' : 'bg-transparent text-[#3b2b12]'}`}
+              onClick={() => setUseGemini(true)}
+              disabled={isLoading}
+            >
+              Gemini
+            </button>
+            <button
+              className={`px-2.5 py-1 font-bold ${!useGemini ? 'bg-[#111] text-white' : 'bg-transparent text-[#3b2b12]'}`}
+              onClick={() => setUseGemini(false)}
+              disabled={isLoading}
+            >
+              OpenAI
+            </button>
+          </div>
+        </div>
         <div className="flex gap-2">
           <button
             className="flex-1 rounded-full px-2.5 py-2 bg-[#111] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
@@ -241,9 +273,13 @@ export function SofubiModule() {
           </button>
         </div>
         <p className="text-[11px] text-[#3b2b12]">{status}</p>
-        {!OPENAI_KEY && (
-          <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_OPENAI_API_KEY を設定してください。</p>
-        )}
+        {useGemini
+          ? !NANO_KEY && (
+              <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>
+            )
+          : !OPENAI_KEY && (
+              <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_OPENAI_API_KEY を設定してください。</p>
+            )}
       </div>
     </section>
   )

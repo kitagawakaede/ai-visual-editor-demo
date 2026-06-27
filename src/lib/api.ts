@@ -9,6 +9,11 @@ export async function requestOpenAIImageEdit(
   refBlob?: Blob,
   model = 'gpt-image-1.5',
   size = '1024x1024',
+  // 'low' で出力モデレーションを緩める（子ども生成など弾かれやすい用途向け）。
+  // 'auto' は既定の標準フィルタ。
+  moderation?: 'auto' | 'low',
+  // 生成品質。'low'/'medium' は高速・低コスト、'high'/'auto' は高品質・低速。
+  quality?: 'auto' | 'low' | 'medium' | 'high',
 ): Promise<{ url: string; base64?: string }> {
   if (!OPENAI_KEY) {
     throw new Error('VITE_OPENAI_API_KEY を設定してください')
@@ -42,8 +47,14 @@ export async function requestOpenAIImageEdit(
   formData.append('prompt', prompt)
   formData.append('n', '1')
   formData.append('size', size)
+  if (moderation) {
+    formData.append('moderation', moderation)
+  }
+  if (quality) {
+    formData.append('quality', quality)
+  }
 
-  console.log('openai:image-edit:start', { model, promptLen: prompt.length, hasRef: Boolean(refBlob) })
+  console.log('openai:image-edit:start', { model, promptLen: prompt.length, hasRef: Boolean(refBlob), moderation: moderation ?? 'auto', quality: quality ?? 'auto' })
 
   const response = await fetch(OPENAI_IMAGE_EDIT_URL, {
     method: 'POST',
@@ -152,6 +163,50 @@ export async function requestNanoBanana(prompt: string, imageBlob: Blob, refBlob
   const blob = new Blob([buffer])
   const url = URL.createObjectURL(blob)
   return { url }
+}
+
+// 写真から見た目の性別を判定する（参考画像の男女出し分け用）。
+// 判定不能・失敗時は 'woman' を返す。
+const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
+export async function detectGenderFromImage(imageBlob: Blob): Promise<'man' | 'woman'> {
+  if (!OPENAI_KEY) return 'woman'
+  try {
+    const base64 = await blobToBase64(imageBlob)
+    const body = {
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Look at the person in this photo and judge their apparent gender presentation. Reply with exactly one lowercase word: "man" or "woman". If unsure, reply "woman".',
+            },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+          ],
+        },
+      ],
+      max_tokens: 5,
+      temperature: 0,
+    }
+    const res = await fetch(OPENAI_CHAT_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      console.error('gender:error', { status: res.status })
+      return 'woman'
+    }
+    const data = await res.json()
+    const text = (data?.choices?.[0]?.message?.content ?? '').toLowerCase()
+    if (text.includes('woman')) return 'woman'
+    if (text.includes('man')) return 'man'
+    return 'woman'
+  } catch (err) {
+    console.error('gender:error', err)
+    return 'woman'
+  }
 }
 
 export async function transcribeWithWhisper(audioBlob: Blob): Promise<string> {

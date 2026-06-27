@@ -5,7 +5,7 @@ import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
 import { plushChangePromptBase } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
-import { OmikujiOverlay } from '../components/OmikujiOverlay'
+import { WaitingGame } from '../components/WaitingGame'
 
 type ImageSize = { width: number; height: number }
 
@@ -24,7 +24,7 @@ export function PlushChangeModule() {
   const [status, setStatus] = useState('シャッターボタンを押して撮影してください')
   const [isLoading, setIsLoading] = useState(false)
   const refCache = useRef<Blob | null>(null)
-  const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
+  const { omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
     let active = true
@@ -117,6 +117,7 @@ export function PlushChangeModule() {
       logError('plush-change-error', err)
     } finally {
       setIsLoading(false)
+      resetOmikuji()
     }
   }
 
@@ -126,9 +127,9 @@ export function PlushChangeModule() {
     <section className="flex flex-col gap-2.5">
       <div className="flex items-start justify-between gap-2.5">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold text-[#1f78c8]">ぬいぐるみに変身！</p>
-          <p className="text-[16px] font-extrabold leading-[1.3]">ぬいぐるみになれる！</p>
-          <p className="text-[10px] text-[#3b2b12]">シャッターボタン ▶︎ 自分がぬいぐるみになる！</p>
+          <p className="text-[10px] font-bold text-black">ぬいぐるみに変身！</p>
+          <p className="text-[16px] font-extrabold leading-[1.3] text-black">ぬいぐるみになれる！</p>
+          <p className="text-[10px] text-black">シャッターボタン ▶︎ 自分がぬいぐるみになれる！</p>
         </div>
         <span
           className={`border-2 text-[11px] font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap ${
@@ -149,7 +150,7 @@ export function PlushChangeModule() {
           muted
           playsInline
         />
-        <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
+        <WaitingGame visible={omikujiVisible} onClose={resetOmikuji} />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
             変身中...

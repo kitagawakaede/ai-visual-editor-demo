@@ -1,52 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
-import { requestOpenAIImageEdit, OPENAI_KEY } from '../lib/api'
+import { requestOpenAIImageEdit, requestNanoBanana, OPENAI_KEY, NANO_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
-import { STAMP_PROMPT_MAP, LINE_STAMP_PROMPT_BASE } from '../constants/prompts'
-import { STAMP_TEXTS } from '../constants/stamps'
+import { buildLineStampGridPrompt, pickRandomStamps } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
-import { OmikujiOverlay } from '../components/OmikujiOverlay'
+import { WaitingGame } from '../components/WaitingGame'
 
-const STAMP_REF_URLS: Record<string, string> = {
-  'ありがとうございます！': new URL('../assets/スタンプ/image.png', import.meta.url).href,
-  '承知しました':           new URL('../assets/スタンプ/image copy.png', import.meta.url).href,
-  'おはようございます':     new URL('../assets/スタンプ/image copy 2.png', import.meta.url).href,
-  '了解です！':             new URL('../assets/スタンプ/image copy 3.png', import.meta.url).href,
-  '確認します':             new URL('../assets/スタンプ/image copy 4.png', import.meta.url).href,
-  '少々お待ちください':     new URL('../assets/スタンプ/image copy 5.png', import.meta.url).href,
-  'おつかれさまです':       new URL('../assets/スタンプ/image copy 6.png', import.meta.url).href,
-  'お願いします！':         new URL('../assets/スタンプ/image copy 7.png', import.meta.url).href,
-  '今向かいます':           new URL('../assets/スタンプ/image copy 8.png', import.meta.url).href,
-  'すみません！':           new URL('../assets/スタンプ/image copy 9.png', import.meta.url).href,
-  '完了しました！':         new URL('../assets/スタンプ/image copy 10.png', import.meta.url).href,
-  '考え中…':               new URL('../assets/スタンプ/image copy 11.png', import.meta.url).href,
-}
-
-
+// 生成エンジン切り替え（速度比較用）：true=Gemini / false=OpenAI gpt-image-1.5
+// スタンプは日本語の文字化け対策で Gemini を採用（OpenAI は文字が崩れやすい）
+const USE_GEMINI = true
 
 export function LineStampModule() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
-  const [selectedText, setSelectedText] = useState<string>(STAMP_TEXTS[0])
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultQr, setResultQr] = useState<string | null>(null)
   const [isCorrupted, setIsCorrupted] = useState(false)
   const [serverError, setServerError] = useState(false)
-  const [status, setStatus] = useState('写真を撮影してスタンプにするテキストを選んでください')
+  const [status, setStatus] = useState('写真を撮影して「スタンプ作成」を押してください')
   const [isLoading, setIsLoading] = useState(false)
-  const refBlobCache = useRef<Map<string, Blob>>(new Map())
-  const { omikujiUrl, omikujiVisible, omikujiKey, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
-
-  const getCroppedRefBlob = async (text: string): Promise<Blob> => {
-    if (refBlobCache.current.has(text)) return refBlobCache.current.get(text)!
-    const url = STAMP_REF_URLS[text] ?? Object.values(STAMP_REF_URLS)[0]
-    const blob = await fetch(url).then((r) => r.blob())
-    refBlobCache.current.set(text, blob)
-    return blob
-  }
+  const { omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
     let active = true
@@ -80,17 +56,10 @@ export function LineStampModule() {
       const shot = await captureStill(videoRef.current)
       setCapturedUrl(shot.url)
       setCapturedBlob(shot.blob)
-      setStatus('撮影完了。テキストを選んで「スタンプ作成」を押してください')
+      setStatus('撮影完了。「スタンプ作成」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
     }
-  }
-
-  const handleRandomText = () => {
-    const current = selectedText
-    const others = STAMP_TEXTS.filter((t) => t !== current)
-    const next = others[Math.floor(Math.random() * others.length)]
-    setSelectedText(next)
   }
 
   const handleGenerate = async () => {
@@ -106,9 +75,16 @@ export function LineStampModule() {
     setIsLoading(true)
     setStatus('スタンプ生成中...')
     try {
-      const refBlob = await getCroppedRefBlob(selectedText)
-      const prompt = STAMP_PROMPT_MAP[selectedText] ?? LINE_STAMP_PROMPT_BASE
-      const result = await requestOpenAIImageEdit(prompt, capturedBlob, refBlob)
+      // 12種からランダムで6種を選び、その6種でプロンプトを組み立てる
+      const selected = pickRandomStamps(6)
+      const prompt = buildLineStampGridPrompt(selected)
+      console.log('stamp:selected', selected.map((s) => s.text))
+      // 参照画像の人物に引っ張られて本人と似なくなるため、参照画像は渡さず
+      // 本人写真のみを入力にする（画風・文字スタイルはプロンプトで指定）。
+      // 6枚グリッド生成。USE_GEMINI=true なら Gemini（速い・サイズ指定不可）、false なら OpenAI（縦長指定可）
+      const result = USE_GEMINI
+        ? await requestNanoBanana(prompt, capturedBlob)
+        : await requestOpenAIImageEdit(prompt, capturedBlob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'low')
       let rawBlob: Blob | null = null
       if (result.base64 && isValidBase64Image(result.base64)) {
         rawBlob = await base64ToBlob(result.base64, 'image/jpeg')
@@ -121,7 +97,6 @@ export function LineStampModule() {
         rawBlob = await (await fetch(result.url)).blob()
       }
       if (rawBlob) {
-        // BプランでAIがテキストを生成するためオーバーレイ不要
         const displayUrl = URL.createObjectURL(rawBlob)
         setResultUrl(displayUrl)
         uploadToSupabase(rawBlob, 'stamp', { compress: true })
@@ -136,16 +111,26 @@ export function LineStampModule() {
       logError('stamp-error', err)
     } finally {
       setIsLoading(false)
+      resetOmikuji()
     }
+  }
+
+  const handleCloseResult = () => {
+    setResultUrl(null)
+    setCapturedUrl(null)
+    setIsCorrupted(false)
+    setServerError(false)
+    setResultQr(null)
+    setStatus('写真を撮影して「スタンプ作成」を押してください')
   }
 
   return (
     <section className="flex flex-col gap-2.5">
       <div className="flex items-start justify-between gap-2.5">
         <div className="space-y-1">
-          <p className="text-[10px] font-bold text-[#1f78c8]">LINEスタンプ作成</p>
-          <p className="text-[16px] font-extrabold leading-[1.3]">自分だけのスタンプを作ろう！</p>
-          <p className="text-[10px] text-[#3b2b12]">撮影 ▶︎ テキスト選択 ▶︎ スタンプ作成の3ステップ。</p>
+          <p className="text-[10px] font-bold text-black">LINE STAMP</p>
+          <p className="text-[16px] font-extrabold leading-[1.3] text-black">自分のLINE STAMPを作ってみよう！</p>
+          <p className="text-[10px] text-black">撮影 ▶︎ 1ステップで自分のスタンプを作れちゃう。</p>
         </div>
         <span
           className={`border-2 text-[11px] font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap ${
@@ -166,7 +151,7 @@ export function LineStampModule() {
           muted
           playsInline
         />
-        <OmikujiOverlay url={omikujiUrl} visible={omikujiVisible} fadeKey={omikujiKey} onClose={resetOmikuji} />
+        <WaitingGame visible={omikujiVisible} onClose={resetOmikuji} />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.6)] text-white font-bold text-lg z-10">
             生成中...
@@ -190,25 +175,55 @@ export function LineStampModule() {
             </button>
           </div>
         )}
+
+        {/* LINEスタンプ購入画面（カメラ枠内に再現） */}
         {resultUrl && !isLoading && !isCorrupted && (
-          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-[rgba(0,0,0,0.55)]">
-            <button
-              className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold"
-              onClick={() => {
-                setResultUrl(null)
-                setCapturedUrl(null)
-                setIsCorrupted(false)
-                setServerError(false)
-                setResultQr(null)
-              }}
-              aria-label="close result"
-            >
-              ×
-            </button>
-            <img style={{ width: '100%', height: '100%', objectFit: 'contain' }} src={resultUrl} alt="stamp result" />
-            {resultQr && (
-              <img className="absolute bottom-3 right-3 w-24 h-24 bg-white p-1 rounded" src={resultQr} alt="QRコード" />
-            )}
+          <div className="absolute inset-0 w-full h-full flex flex-col bg-white text-[#222]">
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between px-3 py-2 shrink-0">
+              <button className="text-[20px] leading-none text-[#444]" onClick={handleCloseResult} aria-label="back">
+                ‹
+              </button>
+              <div className="flex items-center gap-3">
+                <span className="text-[16px] text-[#444]">⤴</span>
+                <button className="text-[18px] leading-none text-[#444]" onClick={handleCloseResult} aria-label="close">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* QR + MY STAMP */}
+            <div className="flex flex-col items-center gap-1.5 pb-2 shrink-0">
+              {resultQr ? (
+                <img className="w-[88px] h-[88px]" src={resultQr} alt="QRコード" />
+              ) : (
+                <div className="w-[88px] h-[88px] grid place-items-center bg-[#f2f2f2] text-[10px] text-[#999] rounded">
+                  QR生成中
+                </div>
+              )}
+              <span className="text-[11px] font-bold tracking-wide text-[#333] border border-[#ddd] rounded-md px-3 py-1">
+                MY STAMP
+              </span>
+            </div>
+
+            {/* アクション行（ダミー） */}
+            <div className="flex items-stretch gap-2 px-3 pb-2 shrink-0">
+              <div className="flex flex-col items-center justify-center px-2 rounded-lg border border-[#e5e5e5]">
+                <span className="text-[14px] leading-none text-[#ff4d6d]">♥</span>
+                <span className="text-[9px] text-[#888] leading-none mt-0.5">10,000</span>
+              </div>
+              <button className="flex-1 rounded-lg border border-[#cfcfcf] bg-white text-[#333] text-[12px] font-bold">
+                プレゼントする
+              </button>
+              <button className="flex-1 rounded-lg bg-[#06C755] text-white text-[12px] font-bold">
+                購入する
+              </button>
+            </div>
+
+            {/* スタンプ一覧（この部分のみスクロール） */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 bg-[#fafafa]">
+              <img className="w-full h-auto block" src={resultUrl} alt="stamp grid" />
+            </div>
           </div>
         )}
       </div>
@@ -230,37 +245,14 @@ export function LineStampModule() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-[#2a1905] whitespace-nowrap">テキスト：</span>
-          <span className="text-[12px] font-bold text-[#1f78c8] flex-1">{selectedText}</span>
-          <button
-            className="rounded-full px-2.5 py-1.5 bg-white text-[#2a1905] text-[11px] font-bold border border-[#2a1905]"
-            onClick={handleRandomText}
-          >
-            ランダム
-          </button>
-        </div>
-
-        <div className="grid grid-cols-3 gap-1">
-          {STAMP_TEXTS.map((text) => (
-            <button
-              key={text}
-              className={`rounded-[8px] py-1.5 px-1 text-[10px] font-medium border transition ${
-                selectedText === text
-                  ? 'bg-[#7eb8ff] text-[#0b1b3a] border-transparent'
-                  : 'bg-white text-[#2a1905] border-[#c9c9c9]'
-              }`}
-              onClick={() => setSelectedText(text)}
-            >
-              {text}
-            </button>
-          ))}
-        </div>
-
         <p className="text-[11px] text-[#3b2b12]">{status}</p>
-        {!OPENAI_KEY && (
-          <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_OPENAI_API_KEY を設定してください。</p>
-        )}
+        {USE_GEMINI
+          ? !NANO_KEY && (
+              <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>
+            )
+          : !OPENAI_KEY && (
+              <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_OPENAI_API_KEY を設定してください。</p>
+            )}
       </div>
     </section>
   )

@@ -8,8 +8,9 @@ import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { WaitingGame } from '../components/WaitingGame'
 
 // 生成エンジン切り替え（速度比較用）：true=Gemini / false=OpenAI gpt-image-1.5
-// スタンプは日本語の文字化け対策で Gemini を採用（OpenAI は文字が崩れやすい）
-const USE_GEMINI = true
+// スタンプは文字精度重視で OpenAI(moderation:'low' + quality:'medium')。
+// quality:'low' だと文字が大きく崩れるため medium で精度を確保。
+const USE_GEMINI = false
 
 export function LineStampModule() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -84,7 +85,7 @@ export function LineStampModule() {
       // 6枚グリッド生成。USE_GEMINI=true なら Gemini（速い・サイズ指定不可）、false なら OpenAI（縦長指定可）
       const result = USE_GEMINI
         ? await requestNanoBanana(prompt, capturedBlob)
-        : await requestOpenAIImageEdit(prompt, capturedBlob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'low')
+        : await requestOpenAIImageEdit(prompt, capturedBlob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'medium')
       let rawBlob: Blob | null = null
       if (result.base64 && isValidBase64Image(result.base64)) {
         rawBlob = await base64ToBlob(result.base64, 'image/jpeg')

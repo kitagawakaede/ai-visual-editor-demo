@@ -85,7 +85,7 @@ export function LineStampModule() {
       // 6枚グリッド生成。USE_GEMINI=true なら Gemini（速い・サイズ指定不可）、false なら OpenAI（縦長指定可）
       const result = useGemini
         ? await requestNanoBanana(prompt, capturedBlob)
-        : await requestOpenAIImageEdit(prompt, capturedBlob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'low')
+        : await requestOpenAIImageEdit(prompt, capturedBlob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'medium')
       let rawBlob: Blob | null = null
       if (result.base64 && isValidBase64Image(result.base64)) {
         rawBlob = await base64ToBlob(result.base64, 'image/jpeg')

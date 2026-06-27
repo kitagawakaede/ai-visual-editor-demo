@@ -7,10 +7,9 @@ import { buildLineStampGridPrompt, pickRandomStamps } from '../constants/prompts
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { WaitingGame } from '../components/WaitingGame'
 
-// 生成エンジン切り替え（速度比較用）：true=Gemini / false=OpenAI gpt-image-1.5
-// スタンプは文字精度重視で OpenAI(moderation:'low' + quality:'medium')。
-// quality:'low' だと文字が大きく崩れるため medium で精度を確保。
-const USE_GEMINI = false
+// 生成エンジンはコンポーネント内の state（useGemini）でボタン切り替え。
+// 既定は OpenAI（文字精度重視。moderation:'low' + quality:'medium'）。
+// Gemini は速いが日本語の文字化けが大きい。
 
 export function LineStampModule() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -23,6 +22,7 @@ export function LineStampModule() {
   const [serverError, setServerError] = useState(false)
   const [status, setStatus] = useState('写真を撮影して「スタンプ作成」を押してください')
   const [isLoading, setIsLoading] = useState(false)
+  const [useGemini, setUseGemini] = useState(false) // 既定 OpenAI。デモ比較用にボタンで切替
   const { omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export function LineStampModule() {
       // 参照画像の人物に引っ張られて本人と似なくなるため、参照画像は渡さず
       // 本人写真のみを入力にする（画風・文字スタイルはプロンプトで指定）。
       // 6枚グリッド生成。USE_GEMINI=true なら Gemini（速い・サイズ指定不可）、false なら OpenAI（縦長指定可）
-      const result = USE_GEMINI
+      const result = useGemini
         ? await requestNanoBanana(prompt, capturedBlob)
         : await requestOpenAIImageEdit(prompt, capturedBlob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'medium')
       let rawBlob: Blob | null = null
@@ -230,6 +230,26 @@ export function LineStampModule() {
       </div>
 
       <div className="bg-[#ffedab] rounded-[16px] p-2.5 flex flex-col gap-2 shadow-[0_8px_16px_rgba(0,0,0,0.15)]">
+        {/* 生成エンジン切替（検証用） */}
+        <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#3b2b12]">
+          <span className="font-bold">エンジン:</span>
+          <div className="inline-flex rounded-full border border-[#caa94d] overflow-hidden">
+            <button
+              className={`px-2.5 py-1 font-bold ${useGemini ? 'bg-[#111] text-white' : 'bg-transparent text-[#3b2b12]'}`}
+              onClick={() => setUseGemini(true)}
+              disabled={isLoading}
+            >
+              Gemini
+            </button>
+            <button
+              className={`px-2.5 py-1 font-bold ${!useGemini ? 'bg-[#111] text-white' : 'bg-transparent text-[#3b2b12]'}`}
+              onClick={() => setUseGemini(false)}
+              disabled={isLoading}
+            >
+              OpenAI
+            </button>
+          </div>
+        </div>
         <div className="flex gap-2">
           <button
             className="flex-1 rounded-full px-2.5 py-2 bg-[#111] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5"
@@ -247,7 +267,7 @@ export function LineStampModule() {
         </div>
 
         <p className="text-[11px] text-[#3b2b12]">{status}</p>
-        {USE_GEMINI
+        {useGemini
           ? !NANO_KEY && (
               <p className="text-[11px] text-[#8c2b2b]">環境変数 VITE_NANO_BANANA_API_KEY を設定してください。</p>
             )

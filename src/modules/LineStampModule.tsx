@@ -208,7 +208,7 @@ export function LineStampModule() {
             </div>
 
             {/* アクション行（ダミー） */}
-            <div className="flex items-center gap-2 px-3 pb-2 shrink-0">
+            <div className="flex items-center justify-center gap-2 px-3 pb-2 shrink-0">
               <div className="flex flex-row items-center justify-center gap-0.5 px-1.5 py-0.5 rounded-md border border-[#e5e5e5]">
                 <span className="text-[9px] leading-none text-[#ff4d6d]">♥</span>
                 <span className="text-[8px] text-[#888] leading-none">10,000</span>

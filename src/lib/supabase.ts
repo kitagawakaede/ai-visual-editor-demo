@@ -9,11 +9,15 @@ const MAX_QR_PAYLOAD = 1500
 
 export const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null
 
-export async function uploadToSupabase(blob: Blob, prefix: string, opts?: { compress?: boolean }): Promise<string> {
+export async function uploadToSupabase(
+  blob: Blob,
+  prefix: string,
+  opts?: { compress?: boolean; maxSize?: number; quality?: number },
+): Promise<string> {
   if (!supabase) throw new Error('Supabase未設定です')
   const start = performance.now()
   const compress = Boolean(opts?.compress)
-  const processedBlob = compress ? await compressImage(blob) : blob
+  const processedBlob = compress ? await compressImage(blob, opts?.maxSize, opts?.quality) : blob
   console.log('supabase:upload:start', { prefix, bytes: processedBlob.size, compress })
   const path = `${prefix}/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`
   const upload = async () =>

@@ -173,20 +173,20 @@ export async function detectGenderFromImage(imageBlob: Blob): Promise<'man' | 'w
   try {
     const base64 = await blobToBase64(imageBlob)
     const body = {
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Look at the person in this photo and judge their apparent gender presentation. Reply with exactly one lowercase word: "man" or "woman". If unsure, reply "woman".',
+              text: 'Look carefully at the main person in this photo (face, hair, body, overall appearance) and decide their most likely apparent gender. You MUST choose one — always pick the more likely option and never refuse. Reply with exactly one lowercase word and nothing else: "man" or "woman".',
             },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}`, detail: 'low' } },
           ],
         },
       ],
-      max_tokens: 5,
+      max_tokens: 3,
       temperature: 0,
     }
     const res = await fetch(OPENAI_CHAT_URL, {

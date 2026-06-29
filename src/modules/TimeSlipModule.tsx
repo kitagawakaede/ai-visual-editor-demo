@@ -55,15 +55,17 @@ async function buildAlbumComposite(slots: SlotResult[]): Promise<Blob | null> {
     // ポラロイド枠（下に余白）
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(cx - 8, cy - 8, cell + 16, cell + 40)
-    // object-cover で描画
+    // object-cover で描画。縦長は上揃えにして頭が切れないようにする（はみ出しは下＝足元側）
     const scale = Math.max(cell / img.width, cell / img.height)
     const dw = img.width * scale
     const dh = img.height * scale
+    const dx = cx + (cell - dw) / 2
+    const dy = dh > cell ? cy : cy + (cell - dh) / 2 // 縦長は上端揃え
     ctx.save()
     ctx.beginPath()
     ctx.rect(cx, cy, cell, cell)
     ctx.clip()
-    ctx.drawImage(img, cx + (cell - dw) / 2, cy + (cell - dh) / 2, dw, dh)
+    ctx.drawImage(img, dx, dy, dw, dh)
     ctx.restore()
   }
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.9))
@@ -187,7 +189,7 @@ export function TimeSlipModule() {
       requestAnimationFrame(() => requestAnimationFrame(() => setFilmVisible(true)))
       // アルバム合成→アップロード→QR生成（非同期で後追い表示）
       buildAlbumComposite(slots)
-        .then((blob) => (blob ? uploadToSupabase(blob, 'timeslip', { compress: true }) : null))
+        .then((blob) => (blob ? uploadToSupabase(blob, 'timeslip', { compress: true, maxSize: 1440, quality: 0.82 }) : null))
         .then((url) => (url ? generateQrDataUrl(url) : null))
         .then((qr) => qr && setResultQr(qr))
         .catch((err) => logError('timeslip-qr', err))

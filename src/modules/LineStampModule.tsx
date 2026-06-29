@@ -208,15 +208,21 @@ export function LineStampModule() {
             </div>
 
             {/* アクション行（ダミー） */}
-            <div className="flex items-stretch gap-2 px-3 pb-2 shrink-0">
-              <div className="flex flex-col items-center justify-center px-2 rounded-lg border border-[#e5e5e5]">
-                <span className="text-[14px] leading-none text-[#ff4d6d]">♥</span>
-                <span className="text-[9px] text-[#888] leading-none mt-0.5">10,000</span>
+            <div className="flex items-center justify-center gap-2 px-3 pb-2 shrink-0">
+              <div className="flex flex-row items-center justify-center gap-0.5 px-1.5 py-0.5 rounded-md border border-[#e5e5e5]">
+                <span className="text-[9px] leading-none text-[#ff4d6d]">♥</span>
+                <span className="text-[8px] text-[#888] leading-none">10,000</span>
               </div>
-              <button className="flex-1 rounded-lg border border-[#cfcfcf] bg-white text-[#333] text-[12px] font-bold">
+              <button
+                className="w-28 text-center rounded-md border border-[#cfcfcf] bg-white text-[#333] font-bold py-0.5"
+                style={{ fontSize: '11px' }}
+              >
                 プレゼントする
               </button>
-              <button className="flex-1 rounded-lg bg-[#06C755] text-white text-[12px] font-bold">
+              <button
+                className="w-28 text-center rounded-md bg-[#06C755] text-white font-bold py-0.5"
+                style={{ fontSize: '11px' }}
+              >
                 購入する
               </button>
             </div>

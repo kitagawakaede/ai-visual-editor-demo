@@ -7,25 +7,6 @@ import { TIME_SLIP_ITEMS, TIME_SLIP_NO_REF_IDS } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { WaitingGame } from '../components/WaitingGame'
 
-// TIME_SLIP_ITEMS と同じ並びの参照画像（src/assets/time/）
-const TIME_SLIP_REF_URLS: string[] = [
-  new URL('../assets/time/image copy.png', import.meta.url).href,   // baby
-  new URL('../assets/time/image copy 2.png', import.meta.url).href, // elementary
-  new URL('../assets/time/image copy 3.png', import.meta.url).href, // bosozoku（性別で上書き）
-  new URL('../assets/time/image copy 4.png', import.meta.url).href, // showa-retro
-  new URL('../assets/time/image copy 5.png', import.meta.url).href, // seventies-a
-  new URL('../assets/time/image copy 6.png', import.meta.url).href, // seventies-b
-  new URL('../assets/time/image copy 7.png', import.meta.url).href, // harajuku
-  new URL('../assets/time/image copy 8.png', import.meta.url).href, // honor-student
-  new URL('../assets/time/image copy 9.png', import.meta.url).href, // yankee
-]
-
-// 非行・暴走族時代は性別で参考画像を出し分ける
-const GANG_REF_URLS: Record<'man' | 'woman', string> = {
-  man: new URL('../assets/time/ギャング/man/image.png', import.meta.url).href,
-  woman: new URL('../assets/time/ギャング/woman/image copy 3.png', import.meta.url).href,
-}
-
 // フィルム内の各コマの傾き（固定レイアウト）
 const FILM_ANGLES = [-4, 3, -2, 4, -3, 2, -5, 3, -2]
 
@@ -74,15 +55,17 @@ async function buildAlbumComposite(slots: SlotResult[]): Promise<Blob | null> {
     // ポラロイド枠（下に余白）
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(cx - 8, cy - 8, cell + 16, cell + 40)
-    // object-cover で描画
+    // object-cover で描画。縦長は上揃えにして頭が切れないようにする（はみ出しは下＝足元側）
     const scale = Math.max(cell / img.width, cell / img.height)
     const dw = img.width * scale
     const dh = img.height * scale
+    const dx = cx + (cell - dw) / 2
+    const dy = dh > cell ? cy : cy + (cell - dh) / 2 // 縦長は上端揃え
     ctx.save()
     ctx.beginPath()
     ctx.rect(cx, cy, cell, cell)
     ctx.clip()
-    ctx.drawImage(img, cx + (cell - dw) / 2, cy + (cell - dh) / 2, dw, dh)
+    ctx.drawImage(img, dx, dy, dw, dh)
     ctx.restore()
   }
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.9))
@@ -100,19 +83,7 @@ export function TimeSlipModule() {
   const [status, setStatus] = useState('写真を撮影して「タイムスリップ」を押してください')
   const [isLoading, setIsLoading] = useState(false)
   const [useGemini, setUseGemini] = useState(true) // 既定 Gemini。デモ比較用にボタンで切替
-  const refBlobCache = useRef<Map<string, Blob>>(new Map())
   const { omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
-
-  // bosozoku は性別で参考画像を出し分ける
-  const resolveRefUrl = (index: number, gender: 'man' | 'woman'): string =>
-    TIME_SLIP_ITEMS[index].id === 'bosozoku' ? GANG_REF_URLS[gender] : TIME_SLIP_REF_URLS[index]
-
-  const getRefBlobByUrl = async (url: string): Promise<Blob> => {
-    if (refBlobCache.current.has(url)) return refBlobCache.current.get(url)!
-    const blob = await fetch(url).then((r) => r.blob())
-    refBlobCache.current.set(url, blob)
-    return blob
-  }
 
   useEffect(() => {
     let active = true
@@ -164,10 +135,11 @@ export function TimeSlipModule() {
         }
         return result.url ?? null
       }
-      const refBlob = await getRefBlobByUrl(resolveRefUrl(index, gender))
+      // 年代別アイテムは性別で出し分け（promptByGender があればそちらを使用）。全項目テキストのみ生成。
+      const prompt = item.promptByGender ? item.promptByGender[gender] : item.prompt
       const result = useGemini
-        ? await requestNanoBanana(item.prompt, blob, refBlob)
-        : await requestOpenAIImageEdit(item.prompt, blob, refBlob, 'gpt-image-1.5', '1024x1536', 'low', 'low')
+        ? await requestNanoBanana(prompt, blob)
+        : await requestOpenAIImageEdit(prompt, blob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'medium')
       if (result.base64 && isValidBase64Image(result.base64)) {
         const rawBlob = await base64ToBlob(result.base64, 'image/jpeg')
         return URL.createObjectURL(rawBlob)
@@ -217,7 +189,7 @@ export function TimeSlipModule() {
       requestAnimationFrame(() => requestAnimationFrame(() => setFilmVisible(true)))
       // アルバム合成→アップロード→QR生成（非同期で後追い表示）
       buildAlbumComposite(slots)
-        .then((blob) => (blob ? uploadToSupabase(blob, 'timeslip', { compress: true }) : null))
+        .then((blob) => (blob ? uploadToSupabase(blob, 'timeslip', { compress: true, maxSize: 1440, quality: 0.82 }) : null))
         .then((url) => (url ? generateQrDataUrl(url) : null))
         .then((qr) => qr && setResultQr(qr))
         .catch((err) => logError('timeslip-qr', err))

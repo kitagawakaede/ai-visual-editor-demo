@@ -243,22 +243,17 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
 
   const featured = results ? results.filter((s) => s.category !== null) : []
   const others = results ? results.filter((s) => s.category === null) : []
-  // featured はスコア合計の降順で並べる（先頭＝一番似合う）。
+  // AI採点はどの髪型が一番似合うか（順位付け）に使う。表示の星は順位ごとに固定し、
+  // 「一番似合う」が常に最高評価、以降が確実に下がるようにする（AIが同点を返しても横並びにならない）。
   const scoreSum = (s: HairSlot) => (s.score ? s.score.small + s.score.refined : -1)
-  // 合計順で1位でも個別項目では下位が上回ることがあるため、下位カードの各項目を
-  // 上位カード以下にクランプし、「一番似合う」が常に最高評価に見えるようにする（表示上の単調性を担保）。
-  let prevSmall = 5
-  let prevRefined = 5
+  const RANK_SCORES: HairScore[] = [
+    { small: 5, refined: 5 }, // 一番似合う
+    { small: 4, refined: 4 }, // 普通
+    { small: 3, refined: 3 }, // 普通
+  ]
   const featuredSorted = [...featured]
     .sort((a, b) => scoreSum(b) - scoreSum(a))
-    .map((slot) => {
-      if (!slot.score) return slot
-      const small = Math.min(slot.score.small, prevSmall)
-      const refined = Math.min(slot.score.refined, prevRefined)
-      prevSmall = small
-      prevRefined = refined
-      return { ...slot, score: { small, refined } }
-    })
+    .map((slot, rank) => ({ ...slot, score: RANK_SCORES[rank] ?? slot.score }))
 
   return (
     <section className="flex flex-col gap-2.5">
@@ -338,8 +333,8 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
                 ))}
               </div>
 
-              {/* 下段：その他6枚グリッド（星なし） */}
-              <div className="grid grid-cols-3 gap-1 mt-1.5">
+              {/* 下段：その他6枚グリッド（星なし・上段より枠を小さく＝幅を絞って縮小） */}
+              <div className="grid grid-cols-3 gap-1 mt-1.5 w-[76%] mx-auto">
                 {others.map((slot) => (
                   <div key={slot.id} className="flex flex-col bg-white border border-black/10 rounded-[6px] overflow-hidden">
                     <div className="aspect-square bg-[#eee] overflow-hidden">

@@ -4,8 +4,9 @@ import { PlushChangeModule } from './modules/PlushChangeModule'
 import { SofubiModule } from './modules/SofubiModule'
 import { LineStampModule } from './modules/LineStampModule'
 import { TimeSlipModule } from './modules/TimeSlipModule'
+import { HairStyleModule } from './modules/HairStyleModule'
 
-type Tab = 'tryon' | 'stamp' | 'plush-change' | 'sofubi' | 'timeslip'
+type Tab = 'tryon' | 'stamp' | 'plush-change' | 'sofubi' | 'timeslip' | 'hair'
 
 const spBackground = new URL('./assets/UI/UI2/image.png', import.meta.url).href
 const wearLogo = new URL('./assets/UI/UI2/wear_am_i_logo-01 1.png', import.meta.url).href
@@ -18,6 +19,7 @@ const iconToy = new URL('./assets/UI/UI2/button/image copy.png', import.meta.url
 const iconFigure = new URL('./assets/UI/UI2/button/image copy 2.png', import.meta.url).href
 const iconAlbum = new URL('./assets/UI/UI2/button/image copy 3.png', import.meta.url).href
 const iconTryon = new URL('./assets/UI/UI2/button/image copy 4.png', import.meta.url).href
+const iconHair = new URL('./assets/髪型/image.png', import.meta.url).href
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'stamp', label: 'LINE STAMP', icon: iconStamp },
@@ -25,6 +27,7 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'sofubi', label: 'FIGURE', icon: iconFigure },
   { key: 'timeslip', label: 'ALBUM', icon: iconAlbum },
   { key: 'tryon', label: 'AI 試着', icon: iconTryon },
+  { key: 'hair', label: 'HAIR', icon: iconHair },
 ]
 
 function App() {
@@ -88,6 +91,7 @@ function App() {
           {tab === 'plush-change' && <PlushChangeModule />}
           {tab === 'sofubi' && <SofubiModule />}
           {tab === 'timeslip' && <TimeSlipModule />}
+          {tab === 'hair' && <HairStyleModule />}
         </div>
       </div>
     </div>

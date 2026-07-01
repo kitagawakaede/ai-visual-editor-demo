@@ -54,19 +54,19 @@ async function buildHairComposite(
   others: HairSlot[],
   smallLabel: string,
 ): Promise<Blob | null> {
-  const W = 1200
-  const P = 36
-  const colGap = 24
+  const W = 1000
+  const P = 32
+  const colGap = 20
   const cardW = Math.floor((W - P * 2 - colGap * 2) / 3)
-  const fHeaderH = 56
-  const fNameH = 46
-  const fStarsH = 92
+  const fHeaderH = 50
+  const fNameH = 42
+  const fStarsH = 84
   const fCardH = fHeaderH + cardW + fNameH + fStarsH
-  const oNameH = 48
+  const oNameH = 44
   const oCardH = cardW + oNameH
-  const titleH = 92
-  const sectionGap = 36
-  const rowGap = 28
+  const titleH = 78
+  const sectionGap = 30
+  const rowGap = 24
   const oRows = Math.max(1, Math.ceil(others.length / 3))
   const H = P + titleH + fCardH + sectionGap + oRows * oCardH + (oRows - 1) * rowGap + P
 
@@ -79,19 +79,27 @@ async function buildHairComposite(
   ctx.fillRect(0, 0, W, H)
   ctx.textBaseline = 'alphabetic'
 
+  // 画像は並列で先読みしてから同期描画（直列awaitによる遅延を排除）
+  const imgByUrl = new Map<string, HTMLImageElement>()
+  await Promise.all(
+    [...featured, ...others].map(async (s) => {
+      if (!s.url || imgByUrl.has(s.url)) return
+      try {
+        imgByUrl.set(s.url, await loadImage(s.url))
+      } catch {
+        /* 失敗した枠はプレースホルダ表示 */
+      }
+    }),
+  )
+
   const font = (size: number, weight = 'normal') =>
     `${weight} ${size}px "Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif`
 
-  const drawCover = async (url: string | null, x: number, y: number, size: number) => {
+  const drawCover = (url: string | null, x: number, y: number, size: number) => {
     ctx.fillStyle = '#eeeeee'
     ctx.fillRect(x, y, size, size)
-    if (!url) return
-    let img: HTMLImageElement
-    try {
-      img = await loadImage(url)
-    } catch {
-      return
-    }
+    const img = url ? imgByUrl.get(url) : undefined
+    if (!img) return
     const scale = Math.max(size / img.width, size / img.height)
     const dw = img.width * scale
     const dh = img.height * scale
@@ -121,18 +129,18 @@ async function buildHairComposite(
 
   const drawStarRow = (label: string, n: number, x: number, y: number, w: number) => {
     ctx.fillStyle = '#666666'
-    ctx.font = font(24)
+    ctx.font = font(20)
     ctx.textAlign = 'left'
     ctx.fillText(label, x, y)
     ctx.fillStyle = '#d8a300'
-    ctx.font = font(26)
+    ctx.font = font(22)
     ctx.textAlign = 'right'
     ctx.fillText(starString(n), x + w, y)
     ctx.textAlign = 'left'
   }
 
   // タイトル
-  drawFitCenter('ヘアスタイル診断結果', W / 2, P + 56, W - P * 2, 48, 'bold', '#161616')
+  drawFitCenter('ヘアスタイル診断結果', W / 2, P + 50, W - P * 2, 40, 'bold', '#161616')
 
   // 上段：比較カード（王冠/カテゴリ＋髪型名＋星2項目）
   const fTop = P + titleH
@@ -143,14 +151,14 @@ async function buildHairComposite(
     ctx.lineWidth = 2
     ctx.strokeRect(x, fTop, cardW, fCardH)
     const headerText = s.category === '一番似合う' ? '👑 一番似合う' : s.category ?? ''
-    drawFitCenter(headerText, x + cardW / 2, fTop + 40, cardW - 24, 30, 'bold', '#161616')
-    await drawCover(s.url, x, fTop + fHeaderH, cardW)
-    drawFitCenter(s.label, x + cardW / 2, fTop + fHeaderH + cardW + 32, cardW - 20, 24, 'bold', '#333333')
-    const sx = x + 22
-    const sw = cardW - 44
-    const row1y = fTop + fHeaderH + cardW + fNameH + 32
+    drawFitCenter(headerText, x + cardW / 2, fTop + 35, cardW - 20, 26, 'bold', '#161616')
+    drawCover(s.url, x, fTop + fHeaderH, cardW)
+    drawFitCenter(s.label, x + cardW / 2, fTop + fHeaderH + cardW + 28, cardW - 16, 22, 'bold', '#333333')
+    const sx = x + 18
+    const sw = cardW - 36
+    const row1y = fTop + fHeaderH + cardW + fNameH + 28
     drawStarRow(smallLabel, s.score?.small ?? 0, sx, row1y, sw)
-    drawStarRow('垢抜け度', s.score?.refined ?? 0, sx, row1y + 40, sw)
+    drawStarRow('垢抜け度', s.score?.refined ?? 0, sx, row1y + 34, sw)
   }
 
   // 下段：その他グリッド（髪型名）
@@ -164,11 +172,11 @@ async function buildHairComposite(
     ctx.strokeStyle = '#e2e2e2'
     ctx.lineWidth = 2
     ctx.strokeRect(x, y, cardW, oCardH)
-    await drawCover(s.url, x, y, cardW)
-    drawFitCenter(s.label, x + cardW / 2, y + cardW + 32, cardW - 20, 24, 'normal', '#333333')
+    drawCover(s.url, x, y, cardW)
+    drawFitCenter(s.label, x + cardW / 2, y + cardW + 28, cardW - 16, 22, 'normal', '#333333')
   }
 
-  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92))
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85))
 }
 
 export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: CaptureShare) {
@@ -318,7 +326,7 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
       // QR（後追い）: 画面と同じ内容（王冠・カテゴリ・髪型名・星）を焼き込んで合成
       const view = deriveResultView(slots)
       buildHairComposite(view.featured, view.others, g === 'man' ? '爽やかさ' : '小顔効果')
-        .then((blob) => (blob ? uploadToSupabase(blob, 'hair', { compress: true, maxSize: 1600, quality: 0.88 }) : null))
+        .then((blob) => (blob ? uploadToSupabase(blob, 'hair', { compress: true, maxSize: 1200, quality: 0.82 }) : null))
         .then((url) => (url ? generateQrDataUrl(url) : null))
         .then((qr) => qr && genIdRef.current === myGen && setResultQr(qr))
         .catch((err) => logError('hair-qr', err))

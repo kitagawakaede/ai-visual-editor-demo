@@ -116,16 +116,23 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
     }
   }
 
-  const generateOne = async (item: HairStyleItem, blob: Blob, g: 'man' | 'woman'): Promise<string | null> => {
+  // 生成結果は url（表示用オブジェクトURL）と blob（採点にそのまま使う）を返す。
+  // blob を持ち回ることで採点時の fetch(objectURL) 再取得を避ける。
+  const generateOne = async (
+    item: HairStyleItem,
+    blob: Blob,
+    g: 'man' | 'woman',
+  ): Promise<{ url: string; blob: Blob | null } | null> => {
     try {
       const prompt = item.promptByGender[g]
       const result = useGemini
         ? await requestNanoBanana(prompt, blob)
         : await requestOpenAIImageEdit(prompt, blob, undefined, 'gpt-image-1.5', '1024x1536', 'low', 'medium')
       if (result.base64 && isValidBase64Image(result.base64)) {
-        return URL.createObjectURL(await base64ToBlob(result.base64, 'image/jpeg'))
+        const outBlob = await base64ToBlob(result.base64, 'image/jpeg')
+        return { url: URL.createObjectURL(outBlob), blob: outBlob }
       }
-      return result.url ?? null
+      return result.url ? { url: result.url, blob: null } : null
     } catch (err) {
       logError(`hair-${item.id}`, err)
       return null
@@ -149,15 +156,21 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
       setGender(g)
       console.log('hair:gender', g)
       // 9枚を並列生成
-      const urls = await Promise.all(HAIR_STYLE_ITEMS.map((item) => generateOne(item, capturedBlob, g)))
-      // 生成成功した全枚を並列採点（3→9枚に増えても Promise.all で同時実行なので待ち時間はほぼ一定）
+      const gen = await Promise.all(HAIR_STYLE_ITEMS.map((item) => generateOne(item, capturedBlob, g)))
+      const urls = gen.map((r) => r?.url ?? null)
+      // 生成成功した全枚を並列採点（3→9枚に増えても Promise.all で同時実行なので待ち時間はほぼ一定）。
+      // 1枚の採点失敗が全体を巻き込まないよう各枚を try/catch で隔離する。
       const scoreByIndex = new Map<number, HairScore>()
       await Promise.all(
-        HAIR_STYLE_ITEMS.map(async (_item, i) => {
-          if (!urls[i]) return
-          const resp = await fetch(urls[i] as string)
-          const blob = await resp.blob()
-          scoreByIndex.set(i, await scoreHairstyle(blob, g))
+        HAIR_STYLE_ITEMS.map(async (item, i) => {
+          const r = gen[i]
+          if (!r) return
+          try {
+            const blob = r.blob ?? (await (await fetch(r.url)).blob())
+            scoreByIndex.set(i, await scoreHairstyle(blob, g))
+          } catch (err) {
+            logError(`hair-score-${item.id}`, err)
+          }
         }),
       )
       // 生成成功した全枚を合計スコア降順でソートし、上位3枚にカテゴリを割り当て

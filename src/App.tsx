@@ -36,7 +36,11 @@ function App() {
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const handleCapture = (url: string | null, blob: Blob | null) => {
-    setCapturedUrl(url)
+    // 撮り直し時に前回のオブジェクトURLを解放（リーク防止）
+    setCapturedUrl((prev) => {
+      if (prev && prev !== url) URL.revokeObjectURL(prev)
+      return url
+    })
     setCapturedBlob(blob)
   }
   const capture = { capturedUrl, capturedBlob, onCapture: handleCapture }

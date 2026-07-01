@@ -6,6 +6,7 @@ import { logError } from '../lib/error'
 import { SOFUBI_PROMPT, SOFUBI_PROMPT_NO_REF } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { WaitingGame } from '../components/WaitingGame'
+import { EngineToggle } from '../components/EngineToggle'
 
 const sofubiRefUrl = new URL('../assets/ref_sofubi.png', import.meta.url).href
 
@@ -237,26 +238,8 @@ export function SofubiModule() {
       </div>
 
       <div className="bg-[#ffedab] rounded-[16px] p-2.5 flex flex-col gap-2 shadow-[0_8px_16px_rgba(0,0,0,0.15)]">
-        {/* 生成エンジン切替（検証用） */}
-        <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#3b2b12]">
-          <span className="font-bold">エンジン:</span>
-          <div className="inline-flex rounded-full border border-[#caa94d] overflow-hidden">
-            <button
-              className={`px-2.5 py-1 font-bold ${useGemini ? 'bg-[#111] text-white' : 'bg-transparent text-[#3b2b12]'}`}
-              onClick={() => setUseGemini(true)}
-              disabled={isLoading}
-            >
-              Gemini
-            </button>
-            <button
-              className={`px-2.5 py-1 font-bold ${!useGemini ? 'bg-[#111] text-white' : 'bg-transparent text-[#3b2b12]'}`}
-              onClick={() => setUseGemini(false)}
-              disabled={isLoading}
-            >
-              OpenAI
-            </button>
-          </div>
-        </div>
+        {/* 生成エンジン切替（アイコン：選択=黒背景／未選択=白背景） */}
+        <EngineToggle useGemini={useGemini} onChange={setUseGemini} disabled={isLoading} />
         <div className="flex gap-2">
           <button
             className="flex-1 rounded-full px-2.5 py-2 bg-[#111] text-white text-[12px] font-bold inline-flex items-center justify-center gap-1.5"

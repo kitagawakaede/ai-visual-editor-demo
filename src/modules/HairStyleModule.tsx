@@ -262,50 +262,65 @@ export function HairStyleModule() {
             <button className="border-2 border-[#2a1905] rounded-full px-2.5 py-2 bg-[#7eb8ff] text-[#0b1b3a] text-[12px] font-bold inline-flex items-center justify-center gap-1.5" onClick={handleGenerate}>再生成する</button>
           </div>
         )}
-      </div>
 
-      {results && !isLoading && (
-        <div className="rounded-[16px] bg-white/95 p-2.5 shadow-[0_8px_16px_rgba(0,0,0,0.15)] transition-opacity duration-700 ease-out" style={{ opacity: resultVisible ? 1 : 0 }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[12px] font-extrabold text-black">診断結果</span>
-            <div className="flex items-center gap-2">
-              {resultQr ? <img className="w-9 h-9 bg-white p-0.5 rounded border border-black/10" src={resultQr} alt="QRコード" /> : <span className="text-black/40 text-[9px]">QR生成中…</span>}
-              <button className="w-6 h-6 rounded-full border border-black/30 text-black/70 text-[13px] leading-none" onClick={handleCloseResult} aria-label="close result">✕</button>
+        {/* 診断結果（カメラ枠内・他機能と同じくオーバーレイ表示・フェードイン） */}
+        {results && !isLoading && (
+          <div className="absolute inset-0 w-full h-full flex flex-col bg-white">
+            <div className="flex items-center justify-between px-2 py-1.5 shrink-0">
+              <span className="text-[11px] font-extrabold text-black tracking-wide">診断結果</span>
+              <div className="flex items-center gap-2">
+                {resultQr ? (
+                  <img className="w-8 h-8 bg-white p-0.5 rounded border border-black/10" src={resultQr} alt="QRコード" />
+                ) : (
+                  <span className="text-black/40 text-[9px]">QR生成中…</span>
+                )}
+                <button
+                  className="w-6 h-6 rounded-full border border-black/30 text-black/70 text-[13px] leading-none"
+                  onClick={handleCloseResult}
+                  aria-label="close result"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div
+              className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 transition-opacity duration-700 ease-out"
+              style={{ opacity: resultVisible ? 1 : 0 }}
+            >
+              {/* 上段：上位3枚 比較カード（星付き） */}
+              <div className="grid grid-cols-3 gap-1">
+                {featuredSorted.map((slot) => (
+                  <div key={slot.id} className="flex flex-col bg-white border border-black/10 rounded-[8px] overflow-hidden shadow-sm">
+                    <div className="text-center py-0.5 text-[9px] font-bold text-black leading-tight">
+                      {slot.category === '一番似合う' ? '👑一番似合う' : slot.category}
+                    </div>
+                    <div className="aspect-square bg-[#eee] overflow-hidden">
+                      {slot.url ? <img className="w-full h-full object-cover block" src={slot.url} alt={slot.label} /> : <div className="w-full h-full grid place-items-center text-[8px] text-[#999]">生成失敗</div>}
+                    </div>
+                    <p className="text-center text-[7px] text-[#444] mt-0.5 px-0.5 leading-tight truncate">{slot.label}</p>
+                    <div className="px-1 pb-1 text-[7px] text-[#c8a013] leading-tight">
+                      <div className="flex justify-between"><span className="text-[#666]">{smallLabel}</span><span>{slot.score ? stars(slot.score.small) : '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-[#666]">垢抜け度</span><span>{slot.score ? stars(slot.score.refined) : '—'}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 下段：その他6枚グリッド（星なし） */}
+              <div className="grid grid-cols-3 gap-1 mt-1.5">
+                {others.map((slot) => (
+                  <div key={slot.id} className="flex flex-col bg-white border border-black/10 rounded-[6px] overflow-hidden">
+                    <div className="aspect-square bg-[#eee] overflow-hidden">
+                      {slot.url ? <img className="w-full h-full object-cover block" src={slot.url} alt={slot.label} /> : <div className="w-full h-full grid place-items-center text-[8px] text-[#999]">生成失敗</div>}
+                    </div>
+                    <p className="text-center text-[7px] text-[#444] py-0.5 px-0.5 leading-tight truncate">{slot.label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-
-          {/* 上段：上位3枚 比較カード */}
-          <div className="grid grid-cols-3 gap-1.5">
-            {featuredSorted.map((slot) => (
-              <div key={slot.id} className="flex flex-col bg-white border border-black/10 rounded-[10px] overflow-hidden shadow-sm">
-                <div className="text-center py-1 text-[10px] font-bold text-black">
-                  {slot.category === '一番似合う' ? '👑 一番似合う' : slot.category}
-                </div>
-                <div className="aspect-square bg-[#eee] overflow-hidden">
-                  {slot.url ? <img className="w-full h-full object-cover block" src={slot.url} alt={slot.label} /> : <div className="w-full h-full grid place-items-center text-[8px] text-[#999]">生成失敗</div>}
-                </div>
-                <p className="text-center text-[8px] text-[#444] mt-0.5 px-0.5 leading-tight truncate">{slot.label}</p>
-                <div className="px-1 pb-1 text-[7px] text-[#c8a013] leading-tight">
-                  <div className="flex justify-between"><span className="text-[#666]">{smallLabel}</span><span>{slot.score ? stars(slot.score.small) : '—'}</span></div>
-                  <div className="flex justify-between"><span className="text-[#666]">垢抜け度</span><span>{slot.score ? stars(slot.score.refined) : '—'}</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 下段：その他6枚グリッド */}
-          <div className="grid grid-cols-3 gap-1.5 mt-2">
-            {others.map((slot) => (
-              <div key={slot.id} className="flex flex-col bg-white border border-black/10 rounded-[8px] overflow-hidden">
-                <div className="aspect-square bg-[#eee] overflow-hidden">
-                  {slot.url ? <img className="w-full h-full object-cover block" src={slot.url} alt={slot.label} /> : <div className="w-full h-full grid place-items-center text-[8px] text-[#999]">生成失敗</div>}
-                </div>
-                <p className="text-center text-[7px] text-[#444] py-0.5 px-0.5 leading-tight truncate">{slot.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="bg-[#ffedab] rounded-[16px] p-2.5 flex flex-col gap-2 shadow-[0_8px_16px_rgba(0,0,0,0.15)]">
         <EngineToggle useGemini={useGemini} onChange={setUseGemini} disabled={isLoading} />

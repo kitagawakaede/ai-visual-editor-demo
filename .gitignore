@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 .env
 .gstack/
+
+# ローカル検証用（APIキーを含むため非コミット）
+doc/test_sofubi.py
+doc/sofubi_test_output*.png

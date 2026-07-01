@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
+import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints, type CaptureShare } from '../lib/image'
 import { requestOpenAIImageEdit, requestNanoBanana, OPENAI_KEY, NANO_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
@@ -44,16 +44,14 @@ async function padImageForFullBody(blob: Blob): Promise<Blob> {
 }
 
 
-export function SofubiModule() {
+export function SofubiModule({ capturedUrl, capturedBlob, onCapture }: CaptureShare) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
-  const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
-  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultQr, setResultQr] = useState<string | null>(null)
   const [isCorrupted, setIsCorrupted] = useState(false)
   const [serverError, setServerError] = useState(false)
-  const [status, setStatus] = useState('写真を撮影してください')
+  const [status, setStatus] = useState(capturedBlob ? '撮影済み。「変身する」を押してください' : '写真を撮影してください')
   const [isLoading, setIsLoading] = useState(false)
   const [useGemini, setUseGemini] = useState(false) // 既定 OpenAI。デモ比較用にボタンで切替
   const refBlobCache = useRef<Blob | null>(null)
@@ -97,8 +95,7 @@ export function SofubiModule() {
     setStatus('撮影中...')
     try {
       const shot = await captureStill(videoRef.current)
-      setCapturedUrl(shot.url)
-      setCapturedBlob(shot.blob)
+      onCapture(shot.url, shot.blob)
       setStatus('撮影完了。「変身する」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -216,7 +213,6 @@ export function SofubiModule() {
               className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold z-10"
               onClick={() => {
                 setResultUrl(null)
-                setCapturedUrl(null)
                 setIsCorrupted(false)
                 setServerError(false)
                 setResultQr(null)

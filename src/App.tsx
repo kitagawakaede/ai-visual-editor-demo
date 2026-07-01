@@ -32,6 +32,14 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 function App() {
   const [tab, setTab] = useState<Tab>('tryon')
+  // 撮影した写真は全機能で共有（一度撮れば別タブへ引き継ぐ）
+  const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
+  const handleCapture = (url: string | null, blob: Blob | null) => {
+    setCapturedUrl(url)
+    setCapturedBlob(blob)
+  }
+  const capture = { capturedUrl, capturedBlob, onCapture: handleCapture }
 
   return (
     <div className="min-h-screen w-full bg-[#efe1ae] flex justify-center text-[#2a1905] leading-[1.4]">
@@ -86,12 +94,12 @@ function App() {
             </div>
           </section>
 
-          {tab === 'tryon' && <TryOnModule />}
-          {tab === 'stamp' && <LineStampModule />}
-          {tab === 'plush-change' && <PlushChangeModule />}
-          {tab === 'sofubi' && <SofubiModule />}
-          {tab === 'timeslip' && <TimeSlipModule />}
-          {tab === 'hair' && <HairStyleModule />}
+          {tab === 'tryon' && <TryOnModule {...capture} />}
+          {tab === 'stamp' && <LineStampModule {...capture} />}
+          {tab === 'plush-change' && <PlushChangeModule {...capture} />}
+          {tab === 'sofubi' && <SofubiModule {...capture} />}
+          {tab === 'timeslip' && <TimeSlipModule {...capture} />}
+          {tab === 'hair' && <HairStyleModule {...capture} />}
         </div>
       </div>
     </div>

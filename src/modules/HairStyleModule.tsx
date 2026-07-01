@@ -333,8 +333,8 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
                 ))}
               </div>
 
-              {/* 下段：その他6枚グリッド（星なし・上段より枠を小さく＝幅を絞って縮小） */}
-              <div className="grid grid-cols-3 gap-1 mt-1.5 w-[76%] mx-auto">
+              {/* 下段：その他6枚グリッド（星なし・上段より枠を小さく＝幅を絞って縮小・間隔広め） */}
+              <div className="grid grid-cols-3 gap-x-3 gap-y-4 mt-2 w-[92%] mx-auto">
                 {others.map((slot) => (
                   <div key={slot.id} className="flex flex-col bg-white border border-black/10 rounded-[6px] overflow-hidden">
                     <div className="aspect-square bg-[#eee] overflow-hidden">

@@ -222,11 +222,22 @@ export function HairStyleModule() {
 
   const featured = results ? results.filter((s) => s.category !== null) : []
   const others = results ? results.filter((s) => s.category === null) : []
-  // featured は category（一番似合う→普通）順で並べる
-  const featuredSorted = [...featured].sort((a, b) => {
-    const rank = (c: HairSlot['category']) => (c === '一番似合う' ? 0 : c === '普通' ? 1 : 2)
-    return rank(a.category) - rank(b.category)
-  })
+  // featured はスコア合計の降順で並べる（先頭＝一番似合う）。
+  const scoreSum = (s: HairSlot) => (s.score ? s.score.small + s.score.refined : -1)
+  // 合計順で1位でも個別項目では下位が上回ることがあるため、下位カードの各項目を
+  // 上位カード以下にクランプし、「一番似合う」が常に最高評価に見えるようにする（表示上の単調性を担保）。
+  let prevSmall = 5
+  let prevRefined = 5
+  const featuredSorted = [...featured]
+    .sort((a, b) => scoreSum(b) - scoreSum(a))
+    .map((slot) => {
+      if (!slot.score) return slot
+      const small = Math.min(slot.score.small, prevSmall)
+      const refined = Math.min(slot.score.refined, prevRefined)
+      prevSmall = small
+      prevRefined = refined
+      return { ...slot, score: { small, refined } }
+    })
 
   return (
     <section className="flex flex-col gap-2.5">

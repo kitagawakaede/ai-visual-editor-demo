@@ -11,9 +11,9 @@
 ## Global Constraints
 
 - 参照画像は渡さない（テキストのみ生成）。本人の顔・輪郭・骨格を保持し髪型のみ変更する。
-- 生成は9枚（上位3枚 `scored:true` ＋ その他6枚）。個数は固定。男女それぞれ `promptByGender` で出し分け。
-- 星評価は上位3枚のみ・AI採点（gpt-4o vision）。評価項目: 女性=小顔効果・垢抜け度／男性=爽やかさ・垢抜け度。各1〜5の整数。
-- 上位3枚は「2項目合計スコア」降順にソート → 1位「一番似合う」（王冠）、2・3位「普通」。
+- 生成は9枚。個数は固定。男女それぞれ `promptByGender` で出し分け。9枠は対等な候補（固定区分なし）。
+- 星評価は**生成成功した9枚すべて**を AI採点（gpt-4o vision、`Promise.all` で並列）。評価項目: 女性=小顔効果・垢抜け度／男性=爽やかさ・垢抜け度。各1〜5の整数。
+- 全枚を「2項目合計スコア」降順にソート → 上位3枚を比較カード（星付き。1位「一番似合う」＋王冠、2・3位「普通」）、残り6枚をグリッド（星なし）。
 - 既定エンジンは Gemini。`EngineToggle` で OpenAI 切替（切替時は9枚とも OpenAI）。採点は常に gpt-4o。
 - 結果枠の背景は白。
 - **このリポジトリに単体テスト基盤は無い。** 各タスクの検証は `npm run lint`＋`npm run build`（tsc型チェック）＋`npm run dev` での目視確認で行う。
@@ -40,8 +40,8 @@
 - Consumes: なし（新規定義）
 - Produces:
   - `export type HairScore = { small: number; refined: number }` … `small`=女性は小顔効果/男性は爽やかさ、`refined`=垢抜け度（各1〜5）
-  - `export type HairStyleItem = { id: string; label: string; scored: boolean; promptByGender: { man: string; woman: string } }`
-  - `export const HAIR_STYLE_ITEMS: HairStyleItem[]` … 先頭3件が `scored:true`、続く6件が `scored:false`（計9件）
+  - `export type HairStyleItem = { id: string; label: string; promptByGender: { man: string; woman: string } }`
+  - `export const HAIR_STYLE_ITEMS: HairStyleItem[]` … 男女とも9枠（計9件）。区分は持たせない（スコアで決まる）
   - `export const HAIRSTYLE_SCORE_PROMPT: (gender: 'man' | 'woman') => string`
 
 - [ ] **Step 1: 型とベースプロンプトを追記**
@@ -57,7 +57,6 @@ export type HairScore = { small: number; refined: number }
 export type HairStyleItem = {
   id: string
   label: string
-  scored: boolean // true=上位3枚（AI採点対象）
   promptByGender: { man: string; woman: string }
 }
 
@@ -67,19 +66,17 @@ const hairStyleBase = (scene: string) =>
 
 - [ ] **Step 2: 髪型リストを追記**
 
-同ファイルに続けて追記する（女性・男性の文言を両方定義。先頭3件が採点対象）:
+同ファイルに続けて追記する（女性・男性の文言を両方定義。9枠すべて対等な候補）:
 
 ```typescript
 const hairItem = (
   id: string,
   label: string,
-  scored: boolean,
   woman: string,
   man: string,
 ): HairStyleItem => ({
   id,
   label,
-  scored,
   promptByGender: {
     woman: hairStyleBase(`完成画像の人物は必ず女性として描くこと（男性化させない）。髪型は「${woman}」にすること`),
     man: hairStyleBase(`完成画像の人物は必ず男性として描くこと（女性化させない）。髪型は「${man}」にすること`),
@@ -87,39 +84,37 @@ const hairItem = (
 })
 
 export const HAIR_STYLE_ITEMS: HairStyleItem[] = [
-  // 上位3枚（AI採点対象・scored:true）
-  hairItem('feat1', 'くびれミディ×シースルーバング', true,
+  hairItem('h1', 'くびれミディ×シースルーバング',
     'あごから鎖骨あたりの長さの、首元でくびれるレイヤーの効いたミディアム。毛先は軽く外ハネ、前髪は隙間の見えるシースルーバング',
     'ナチュラルな爽やかマッシュに、隙間の見えるシースルーバング。清潔感のある毛流れ'),
-  hairItem('feat2', 'ナチュラルボブ×軽め外ハネ', true,
+  hairItem('h2', 'ナチュラルボブ×軽め外ハネ',
     'あご下ラインの丸みのあるナチュラルボブ。毛先を軽く外ハネにした抜け感のあるスタイル',
     '短めのナチュラルショート。毛先を軽く外に流した、清潔感のある好青年スタイル'),
-  hairItem('feat3', 'ゆる巻きセミロング', true,
+  hairItem('h3', 'ゆる巻きセミロング',
     '鎖骨より下のセミロングを、ゆるく大きめに巻いたやわらかいウェーブ。透明感のある明るめカラー',
     '前髪を上げたセンターパートに、毛先へ向けてゆるい束感を出したこなれスタイル'),
-  // その他6枚（scored:false）
-  hairItem('other1', '外ハネボブ', false,
+  hairItem('h4', '外ハネボブ',
     'あごラインの外ハネボブ。毛先を全体的に外にはねさせた軽快なスタイル',
     'サイドを刈り上げたツーブロックの短髪。トップは短く整えたすっきりスタイル'),
-  hairItem('other2', '耳かけボブ', false,
+  hairItem('h5', '耳かけボブ',
     '片側を耳にかけたすっきりボブ。タイトで大人っぽい印象',
     '前髪を立ち上げたアップバング。おでこを出した男らしいショート'),
-  hairItem('other3', 'ハーフアップ', false,
+  hairItem('h6', 'ハーフアップ',
     'トップをふんわりまとめたハーフアップ。残りの髪は軽く巻いて華やかに',
     '韓国風の重ためマッシュ。厚めの前髪で目元まわりを包む柔らかいスタイル'),
-  hairItem('other4', '低めポニー', false,
+  hairItem('h7', '低めポニー',
     'うなじで結んだ低めのポニーテール。後れ毛を出した抜け感のあるまとめ髪',
     'トップに動きを出したソフトモヒカン。サイドは短く、中央を立ち上げた躍動スタイル'),
-  hairItem('other5', '韓国風ミディ', false,
-    '顔まわりにレイヤーを入れた韓国風ヨシンモリ。большими巻きの華やかなミディアム',
+  hairItem('h8', '韓国風ミディ',
+    '顔まわりにレイヤーを入れた韓国風ヨシンモリ。大きめ巻きの華やかなミディアム',
     'かき上げ前髪のミディアム。大人っぽく色気のある毛流れ'),
-  hairItem('other6', 'センターパートロング', false,
+  hairItem('h9', 'センターパートロング',
     '真ん中分けのストレートロング。毛先だけ軽く内巻きにした清楚なスタイル',
     'パーマで束感を出したショート。全体にランダムな動きのある今どきスタイル'),
 ]
 ```
 
-> 注: Step 2 の `other5` woman 文面内の非ASCII混入（"большими"）は誤記。実装時は「大きめ巻きの華やかなミディアム」に直すこと。
+> 注: 女性の h1〜h3（くびれミディ／ナチュラルボブ／ゆる巻きセミロング）、男性の h1〜h3（爽やかマッシュ／ナチュラルショート／センターパート）が「上位候補として想定した髪型」だが、実際にどれが比較カードに昇格するかは採点スコアで決まる。名称・文言はたたき台で調整可。
 
 - [ ] **Step 3: 採点プロンプトを追記**
 
@@ -135,7 +130,7 @@ export const HAIRSTYLE_SCORE_PROMPT = (gender: 'man' | 'woman'): string => {
 - [ ] **Step 4: lint と型チェック**
 
 Run: `npm run lint && npm run build`
-Expected: エラーなしで完了（`HAIR_STYLE_ITEMS` が9件・先頭3件 scored の定義がコンパイルを通る）。`other5` の非ASCII修正を忘れているとビルドは通るが文面が壊れるため Step 2 の修正を必ず反映すること。
+Expected: エラーなしで完了（`HAIR_STYLE_ITEMS` が9件の定義がコンパイルを通る）。
 
 - [ ] **Step 5: 件数の目視確認**
 
@@ -252,7 +247,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Consumes: `captureStill`,`base64ToBlob`,`isValidBase64Image`,`videoConstraints`（image）/ `requestOpenAIImageEdit`,`requestNanoBanana`,`detectGenderFromImage`,`scoreHairstyle`,`OPENAI_KEY`,`NANO_KEY`（api）/ `HAIR_STYLE_ITEMS`,`HairStyleItem`,`HairScore`（prompts）/ `EngineToggle`,`WaitingGame`,`useOmikujiOverlay`,`logError`,`uploadToSupabase`,`generateQrDataUrl`
 - Produces:
   - `export function HairStyleModule(): JSX.Element`
-  - module 内型 `type HairSlot = { id: string; label: string; url: string | null; scored: boolean; score: HairScore | null; category: '一番似合う' | '普通' | null }`
+  - module 内型 `type HairSlot = { id: string; label: string; url: string | null; score: HairScore | null; category: '一番似合う' | '普通' | null }` … `category !== null` の枠が比較カード（上位3枚）、`null` の枠がグリッド（残り6枚）
 
 - [ ] **Step 1: モジュールの骨格（カメラ・撮影）を作成**
 
@@ -273,9 +268,8 @@ type HairSlot = {
   id: string
   label: string
   url: string | null
-  scored: boolean
   score: HairScore | null
-  category: '一番似合う' | '普通' | null
+  category: '一番似合う' | '普通' | null // 非nullが比較カード（上位3枚）、nullがグリッド
 }
 
 export function HairStyleModule() {
@@ -380,33 +374,32 @@ export function HairStyleModule() {
       console.log('hair:gender', g)
       // 9枚を並列生成
       const urls = await Promise.all(HAIR_STYLE_ITEMS.map((item) => generateOne(item, capturedBlob, g)))
-      // 上位3枚（scored かつ生成成功）のみ採点
+      // 生成成功した全枚を並列採点（3→9枚に増えても Promise.all で同時実行なので待ち時間はほぼ一定）
       const scoreByIndex = new Map<number, HairScore>()
       await Promise.all(
-        HAIR_STYLE_ITEMS.map(async (item, i) => {
-          if (!item.scored || !urls[i]) return
+        HAIR_STYLE_ITEMS.map(async (_item, i) => {
+          if (!urls[i]) return
           const resp = await fetch(urls[i] as string)
           const blob = await resp.blob()
           scoreByIndex.set(i, await scoreHairstyle(blob, g))
         }),
       )
-      // 上位3枚を合計スコア降順でソートし、カテゴリを割り当て
-      const scoredIdx = HAIR_STYLE_ITEMS
-        .map((item, i) => ({ item, i }))
-        .filter(({ item, i }) => item.scored && urls[i])
+      // 生成成功した全枚を合計スコア降順でソートし、上位3枚にカテゴリを割り当て
+      const rankedIdx = HAIR_STYLE_ITEMS
+        .map((_item, i) => i)
+        .filter((i) => urls[i])
         .sort((a, b) => {
-          const sa = scoreByIndex.get(a.i) ?? { small: 0, refined: 0 }
-          const sb = scoreByIndex.get(b.i) ?? { small: 0, refined: 0 }
+          const sa = scoreByIndex.get(a) ?? { small: 0, refined: 0 }
+          const sb = scoreByIndex.get(b) ?? { small: 0, refined: 0 }
           return sb.small + sb.refined - (sa.small + sa.refined)
         })
       const categoryByIndex = new Map<number, '一番似合う' | '普通'>()
-      scoredIdx.forEach(({ i }, rank) => categoryByIndex.set(i, rank === 0 ? '一番似合う' : '普通'))
+      rankedIdx.slice(0, 3).forEach((i, rank) => categoryByIndex.set(i, rank === 0 ? '一番似合う' : '普通'))
 
       const slots: HairSlot[] = HAIR_STYLE_ITEMS.map((item, i) => ({
         id: item.id,
         label: item.label,
         url: urls[i],
-        scored: item.scored,
         score: scoreByIndex.get(i) ?? null,
         category: categoryByIndex.get(i) ?? null,
       }))
@@ -535,8 +528,8 @@ async function buildHairComposite(slots: HairSlot[]): Promise<Blob | null> {
   const smallLabel = gender === 'man' ? '爽やかさ' : '小顔効果'
   const stars = (n: number) => '★★★★★☆☆☆☆☆'.slice(5 - Math.min(5, Math.max(0, n)), 10 - Math.min(5, Math.max(0, n)))
 
-  const featured = results ? results.filter((s) => s.scored) : []
-  const others = results ? results.filter((s) => !s.scored) : []
+  const featured = results ? results.filter((s) => s.category !== null) : []
+  const others = results ? results.filter((s) => s.category === null) : []
   // featured は category（一番似合う→普通）順で並べる
   const featuredSorted = [...featured].sort((a, b) => {
     const rank = (c: HairSlot['category']) => (c === '一番似合う' ? 0 : c === '普通' ? 1 : 2)
@@ -756,9 +749,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Self-Review 結果（作成者チェック済み）
 
-- **Spec coverage:** 9枚生成=Task1/3、上位3枚AI採点=Task2/3、スコア順ソート＋一番似合う/普通=Task3、結果レイアウト（3カード＋6グリッド＋白枠）=Task4、QR=Task4、エンジン切替=Task4、タブ追加=Task5、性別判定=Task3。全項目にタスク対応あり。
-- **Placeholder scan:** `iconHair` の暫定流用は Global Constraints / Spec 第9章で明示済みの意図的プレースホルダ。`other5` 非ASCII混入は Task1 Step2 に修正指示を明記。その他の「TBD/後で」なし。
-- **Type consistency:** `HairScore{small,refined}`・`HairStyleItem{id,label,scored,promptByGender}`・`HairSlot{...,category}`・`scoreHairstyle(blob,gender):HairScore`・`stars(n)`・`buildHairComposite(slots)` はタスク間で名称・シグネチャ一致を確認。
+- **Spec coverage:** 9枚生成=Task1/3、9枚全AI採点（並列）=Task2/3、スコア順ソート→上位3枚昇格＋一番似合う/普通=Task3、結果レイアウト（3カード＋6グリッド＋白枠）=Task4、QR=Task4、エンジン切替=Task4、タブ追加=Task5、性別判定=Task3。全項目にタスク対応あり。
+- **Placeholder scan:** `iconHair` の暫定流用は Global Constraints / Spec 第9章で明示済みの意図的プレースホルダ。その他の「TBD/後で」なし。
+- **Type consistency:** `HairScore{small,refined}`・`HairStyleItem{id,label,promptByGender}`・`HairSlot{...,category}`（`category!==null`が上位3枚）・`scoreHairstyle(blob,gender):HairScore`・`stars(n)`・`buildHairComposite(slots)` はタスク間で名称・シグネチャ一致を確認。
 
 ## 既知の注意点
 

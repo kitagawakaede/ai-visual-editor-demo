@@ -25,46 +25,150 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-async function buildHairComposite(slots: HairSlot[]): Promise<Blob | null> {
-  const cols = 3
-  const rows = 3
-  const cell = 400
-  const pad = 28
-  const W = pad + cols * (cell + pad)
-  const H = pad + rows * (cell + pad)
+// 表示の星は順位ごとに固定（一番似合う=5/5→普通4/4→3/3）。AIが同点を返しても
+// 一番似合うが確実に最高評価になる。順位付け自体はAIスコアを使う。
+const RANK_SCORES: HairScore[] = [
+  { small: 5, refined: 5 }, // 一番似合う
+  { small: 4, refined: 4 }, // 普通
+  { small: 3, refined: 3 }, // 普通
+]
+
+const starString = (n: number) => '★★★★★☆☆☆☆☆'.slice(5 - Math.min(5, Math.max(0, n)), 10 - Math.min(5, Math.max(0, n)))
+
+// results（全9枠）から表示用の featured（上位3・順位別スコア）と others（残り）を導出。
+// 画面表示とQR合成の両方で同じ内容を使うため共通化する。
+function deriveResultView(slots: HairSlot[]): { featured: HairSlot[]; others: HairSlot[] } {
+  const featured = slots.filter((s) => s.category !== null)
+  const others = slots.filter((s) => s.category === null)
+  const scoreSum = (s: HairSlot) => (s.score ? s.score.small + s.score.refined : -1)
+  const featuredSorted = [...featured]
+    .sort((a, b) => scoreSum(b) - scoreSum(a))
+    .map((slot, rank) => ({ ...slot, score: RANK_SCORES[rank] ?? slot.score }))
+  return { featured: featuredSorted, others }
+}
+
+// QR共有用の合成画像。画面と同じく「上段=比較カード（王冠/カテゴリ＋髪型名＋星2項目）、
+// 下段=その他グリッド（髪型名）」をキャンバスに描き込み、読み取った先でも評価が分かるようにする。
+async function buildHairComposite(
+  featured: HairSlot[],
+  others: HairSlot[],
+  smallLabel: string,
+): Promise<Blob | null> {
+  const W = 1200
+  const P = 36
+  const colGap = 24
+  const cardW = Math.floor((W - P * 2 - colGap * 2) / 3)
+  const fHeaderH = 56
+  const fNameH = 46
+  const fStarsH = 92
+  const fCardH = fHeaderH + cardW + fNameH + fStarsH
+  const oNameH = 48
+  const oCardH = cardW + oNameH
+  const titleH = 92
+  const sectionGap = 36
+  const rowGap = 28
+  const oRows = Math.max(1, Math.ceil(others.length / 3))
+  const H = P + titleH + fCardH + sectionGap + oRows * oCardH + (oRows - 1) * rowGap + P
+
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
-  ctx.fillStyle = '#ffffff' // 背景は白
+  ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, W, H)
-  for (let i = 0; i < slots.length; i++) {
-    const s = slots[i]
-    if (!s.url) continue
+  ctx.textBaseline = 'alphabetic'
+
+  const font = (size: number, weight = 'normal') =>
+    `${weight} ${size}px "Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif`
+
+  const drawCover = async (url: string | null, x: number, y: number, size: number) => {
+    ctx.fillStyle = '#eeeeee'
+    ctx.fillRect(x, y, size, size)
+    if (!url) return
     let img: HTMLImageElement
     try {
-      img = await loadImage(s.url)
+      img = await loadImage(url)
     } catch {
-      continue
+      return
     }
-    const cx = pad + (i % cols) * (cell + pad)
-    const cy = pad + Math.floor(i / cols) * (cell + pad)
-    ctx.fillStyle = '#f2f2f2'
-    ctx.fillRect(cx - 6, cy - 6, cell + 12, cell + 12)
-    const scale = Math.max(cell / img.width, cell / img.height)
+    const scale = Math.max(size / img.width, size / img.height)
     const dw = img.width * scale
     const dh = img.height * scale
-    const dx = cx + (cell - dw) / 2
-    const dy = dh > cell ? cy : cy + (cell - dh) / 2
+    const dx = x + (size - dw) / 2
+    const dy = dh > size ? y : y + (size - dh) / 2 // 縦長は上端揃え（頭が切れないように）
     ctx.save()
     ctx.beginPath()
-    ctx.rect(cx, cy, cell, cell)
+    ctx.rect(x, y, size, size)
     ctx.clip()
     ctx.drawImage(img, dx, dy, dw, dh)
     ctx.restore()
   }
-  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.9))
+
+  // 中央寄せ・幅に収まるようフォント自動縮小
+  const drawFitCenter = (text: string, cx: number, y: number, maxW: number, base: number, weight: string, color: string) => {
+    ctx.fillStyle = color
+    let size = base
+    ctx.font = font(size, weight)
+    while (size > 12 && ctx.measureText(text).width > maxW) {
+      size -= 1
+      ctx.font = font(size, weight)
+    }
+    ctx.textAlign = 'center'
+    ctx.fillText(text, cx, y)
+    ctx.textAlign = 'left'
+  }
+
+  const drawStarRow = (label: string, n: number, x: number, y: number, w: number) => {
+    ctx.fillStyle = '#666666'
+    ctx.font = font(24)
+    ctx.textAlign = 'left'
+    ctx.fillText(label, x, y)
+    ctx.fillStyle = '#d8a300'
+    ctx.font = font(26)
+    ctx.textAlign = 'right'
+    ctx.fillText(starString(n), x + w, y)
+    ctx.textAlign = 'left'
+  }
+
+  // タイトル
+  drawFitCenter('ヘアスタイル診断結果', W / 2, P + 56, W - P * 2, 48, 'bold', '#161616')
+
+  // 上段：比較カード（王冠/カテゴリ＋髪型名＋星2項目）
+  const fTop = P + titleH
+  for (let i = 0; i < featured.length; i++) {
+    const s = featured[i]
+    const x = P + i * (cardW + colGap)
+    ctx.strokeStyle = '#e2e2e2'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x, fTop, cardW, fCardH)
+    const headerText = s.category === '一番似合う' ? '👑 一番似合う' : s.category ?? ''
+    drawFitCenter(headerText, x + cardW / 2, fTop + 40, cardW - 24, 30, 'bold', '#161616')
+    await drawCover(s.url, x, fTop + fHeaderH, cardW)
+    drawFitCenter(s.label, x + cardW / 2, fTop + fHeaderH + cardW + 32, cardW - 20, 24, 'bold', '#333333')
+    const sx = x + 22
+    const sw = cardW - 44
+    const row1y = fTop + fHeaderH + cardW + fNameH + 32
+    drawStarRow(smallLabel, s.score?.small ?? 0, sx, row1y, sw)
+    drawStarRow('垢抜け度', s.score?.refined ?? 0, sx, row1y + 40, sw)
+  }
+
+  // 下段：その他グリッド（髪型名）
+  const oTop = fTop + fCardH + sectionGap
+  for (let i = 0; i < others.length; i++) {
+    const s = others[i]
+    const col = i % 3
+    const row = Math.floor(i / 3)
+    const x = P + col * (cardW + colGap)
+    const y = oTop + row * (oCardH + rowGap)
+    ctx.strokeStyle = '#e2e2e2'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x, y, cardW, oCardH)
+    await drawCover(s.url, x, y, cardW)
+    drawFitCenter(s.label, x + cardW / 2, y + cardW + 32, cardW - 20, 24, 'normal', '#333333')
+  }
+
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92))
 }
 
 export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: CaptureShare) {
@@ -211,9 +315,10 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
       setResults(slots)
       setStatus(`診断完了（${successCount}/9枚）`)
       requestAnimationFrame(() => requestAnimationFrame(() => setResultVisible(true)))
-      // QR（後追い）: 9枚を buildHairComposite で合成
-      buildHairComposite(slots)
-        .then((blob) => (blob ? uploadToSupabase(blob, 'hair', { compress: true, maxSize: 1440, quality: 0.82 }) : null))
+      // QR（後追い）: 画面と同じ内容（王冠・カテゴリ・髪型名・星）を焼き込んで合成
+      const view = deriveResultView(slots)
+      buildHairComposite(view.featured, view.others, g === 'man' ? '爽やかさ' : '小顔効果')
+        .then((blob) => (blob ? uploadToSupabase(blob, 'hair', { compress: true, maxSize: 1600, quality: 0.88 }) : null))
         .then((url) => (url ? generateQrDataUrl(url) : null))
         .then((qr) => qr && genIdRef.current === myGen && setResultQr(qr))
         .catch((err) => logError('hair-qr', err))
@@ -239,21 +344,10 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
 
   // 評価項目ラベル（女性=小顔効果、男性=爽やかさ／共通=垢抜け度）
   const smallLabel = gender === 'man' ? '爽やかさ' : '小顔効果'
-  const stars = (n: number) => '★★★★★☆☆☆☆☆'.slice(5 - Math.min(5, Math.max(0, n)), 10 - Math.min(5, Math.max(0, n)))
+  const stars = starString
 
-  const featured = results ? results.filter((s) => s.category !== null) : []
-  const others = results ? results.filter((s) => s.category === null) : []
-  // AI採点はどの髪型が一番似合うか（順位付け）に使う。表示の星は順位ごとに固定し、
-  // 「一番似合う」が常に最高評価、以降が確実に下がるようにする（AIが同点を返しても横並びにならない）。
-  const scoreSum = (s: HairSlot) => (s.score ? s.score.small + s.score.refined : -1)
-  const RANK_SCORES: HairScore[] = [
-    { small: 5, refined: 5 }, // 一番似合う
-    { small: 4, refined: 4 }, // 普通
-    { small: 3, refined: 3 }, // 普通
-  ]
-  const featuredSorted = [...featured]
-    .sort((a, b) => scoreSum(b) - scoreSum(a))
-    .map((slot, rank) => ({ ...slot, score: RANK_SCORES[rank] ?? slot.score }))
+  // 画面表示とQR合成で同じ内容を使う（deriveResultView に一本化）
+  const { featured: featuredSorted, others } = deriveResultView(results ?? [])
 
   return (
     <section className="flex flex-col gap-2.5">

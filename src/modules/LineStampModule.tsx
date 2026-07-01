@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
+import { captureStill, base64ToBlob, isValidBase64Image, videoConstraints, type CaptureShare } from '../lib/image'
 import { requestOpenAIImageEdit, requestNanoBanana, OPENAI_KEY, NANO_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
@@ -12,16 +12,14 @@ import { EngineToggle } from '../components/EngineToggle'
 // 既定は OpenAI（文字精度重視。moderation:'low' + quality:'medium'）。
 // Gemini は速いが日本語の文字化けが大きい。
 
-export function LineStampModule() {
+export function LineStampModule({ capturedUrl, capturedBlob, onCapture }: CaptureShare) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
-  const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
-  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultQr, setResultQr] = useState<string | null>(null)
   const [isCorrupted, setIsCorrupted] = useState(false)
   const [serverError, setServerError] = useState(false)
-  const [status, setStatus] = useState('写真を撮影して「スタンプ作成」を押してください')
+  const [status, setStatus] = useState(capturedBlob ? '撮影済み。「スタンプ作成」を押してください' : '写真を撮影して「スタンプ作成」を押してください')
   const [isLoading, setIsLoading] = useState(false)
   const [useGemini, setUseGemini] = useState(false) // 既定 OpenAI。デモ比較用にボタンで切替
   const { omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
@@ -56,8 +54,7 @@ export function LineStampModule() {
     setStatus('撮影中...')
     try {
       const shot = await captureStill(videoRef.current)
-      setCapturedUrl(shot.url)
-      setCapturedBlob(shot.blob)
+      onCapture(shot.url, shot.blob, { width: shot.width, height: shot.height })
       setStatus('撮影完了。「スタンプ作成」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -119,11 +116,11 @@ export function LineStampModule() {
 
   const handleCloseResult = () => {
     setResultUrl(null)
-    setCapturedUrl(null)
     setIsCorrupted(false)
     setServerError(false)
     setResultQr(null)
-    setStatus('写真を撮影して「スタンプ作成」を押してください')
+    // 撮影写真は共有のため保持（続けて他機能でも使える）
+    setStatus(capturedBlob ? '撮影済み。「スタンプ作成」を押してください' : '写真を撮影して「スタンプ作成」を押してください')
   }
 
   return (

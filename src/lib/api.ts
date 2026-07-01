@@ -1,4 +1,5 @@
 import { blobToBase64, isLikelyBase64, base64ToObjectUrl } from './image'
+import { HAIRSTYLE_SCORE_PROMPT, type HairScore } from '../constants/prompts'
 
 export const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY ?? ''
 const OPENAI_IMAGE_EDIT_URL = 'https://api.openai.com/v1/images/edits'
@@ -206,6 +207,53 @@ export async function detectGenderFromImage(imageBlob: Blob): Promise<'man' | 'w
   } catch (err) {
     console.error('gender:error', err)
     return 'woman'
+  }
+}
+
+// 生成画像を gpt-4o で採点し、2項目（各1〜5）を返す。呼び出し側で全枚を並列採点する。
+// 失敗・パース不能時は中央値 {small:3, refined:3} を返す（例外は投げない）。
+export async function scoreHairstyle(imageBlob: Blob, gender: 'man' | 'woman'): Promise<HairScore> {
+  const fallback: HairScore = { small: 3, refined: 3 }
+  if (!OPENAI_KEY) return fallback
+  const clamp = (n: unknown): number => {
+    const v = Math.round(Number(n))
+    if (!Number.isFinite(v)) return 3
+    return Math.min(5, Math.max(1, v))
+  }
+  try {
+    const base64 = await blobToBase64(imageBlob)
+    const body = {
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: HAIRSTYLE_SCORE_PROMPT(gender) },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}`, detail: 'low' } },
+          ],
+        },
+      ],
+      max_tokens: 30,
+      temperature: 0,
+    }
+    const res = await fetch(OPENAI_CHAT_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      console.error('hairscore:error', { status: res.status })
+      return fallback
+    }
+    const data = await res.json()
+    const text = (data?.choices?.[0]?.message?.content ?? '') as string
+    const match = text.match(/\{[^}]*\}/)
+    if (!match) return fallback
+    const parsed = JSON.parse(match[0]) as { small?: unknown; refined?: unknown }
+    return { small: clamp(parsed.small), refined: clamp(parsed.refined) }
+  } catch (err) {
+    console.error('hairscore:error', err)
+    return fallback
   }
 }
 

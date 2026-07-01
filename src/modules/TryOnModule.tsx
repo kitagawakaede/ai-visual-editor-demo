@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { captureStill, normalizeImageToSize, base64ToBlob, isValidBase64Image, videoConstraints } from '../lib/image'
+import { captureStill, normalizeImageToSize, base64ToBlob, isValidBase64Image, videoConstraints, type CaptureShare } from '../lib/image'
 import { requestNanoBanana, transcribeWithWhisper, NANO_KEY, WHISPER_KEY } from '../lib/api'
 import { uploadToSupabase, generateQrDataUrl } from '../lib/supabase'
 import { logError } from '../lib/error'
@@ -7,15 +7,10 @@ import { tryOnPromptBase } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { WaitingGame } from '../components/WaitingGame'
 
-type ImageSize = { width: number; height: number }
-
-export function TryOnModule() {
+export function TryOnModule({ capturedUrl, capturedBlob, capturedSize, onCapture }: CaptureShare) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
   const [instruction, setInstruction] = useState('')
-  const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
-  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
-  const [captureSize, setCaptureSize] = useState<ImageSize | null>(null)
   const [editedUrl, setEditedUrl] = useState<string | null>(null)
   const [editedQr, setEditedQr] = useState<string | null>(null)
   const [isCorrupted, setIsCorrupted] = useState(false)
@@ -91,9 +86,7 @@ export function TryOnModule() {
     setStatus('撮影中...')
     try {
       const shot = await captureStill(videoRef.current)
-      setCapturedUrl(shot.url)
-      setCapturedBlob(shot.blob)
-      setCaptureSize({ width: shot.width, height: shot.height })
+      onCapture(shot.url, shot.blob, { width: shot.width, height: shot.height })
       setStatus('撮影完了。お着替えを押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -117,7 +110,7 @@ export function TryOnModule() {
       const result = await requestNanoBanana(combinedPrompt, capturedBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
-        const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
+        const normalized = await normalizeImageToSize(blob, capturedSize?.width, capturedSize?.height)
         const displayUrl = URL.createObjectURL(normalized)
         setEditedUrl(displayUrl)
         uploadToSupabase(normalized, 'tryon', { compress: true })
@@ -131,7 +124,7 @@ export function TryOnModule() {
         logError('tryon-invalid-base64', result.base64)
       } else {
         const sourceBlob = await (await fetch(result.url)).blob()
-        const normalized = await normalizeImageToSize(sourceBlob, captureSize?.width, captureSize?.height)
+        const normalized = await normalizeImageToSize(sourceBlob, capturedSize?.width, capturedSize?.height)
         const displayUrl = URL.createObjectURL(normalized)
         setEditedUrl(displayUrl)
         uploadToSupabase(normalized, 'tryon', { compress: true })
@@ -228,7 +221,6 @@ export function TryOnModule() {
               className="absolute top-2 right-2 w-7 h-7 rounded-full border border-white/70 bg-white/80 text-[#2a1905] font-bold"
               onClick={() => {
                 setEditedUrl(null)
-                setCapturedUrl(null)
                 setIsCorrupted(false)
                 setEditedQr(null)
               }}

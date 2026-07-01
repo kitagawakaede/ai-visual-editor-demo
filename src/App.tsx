@@ -4,8 +4,10 @@ import { PlushChangeModule } from './modules/PlushChangeModule'
 import { SofubiModule } from './modules/SofubiModule'
 import { LineStampModule } from './modules/LineStampModule'
 import { TimeSlipModule } from './modules/TimeSlipModule'
+import { HairStyleModule } from './modules/HairStyleModule'
+import type { ImageSize } from './lib/image'
 
-type Tab = 'tryon' | 'stamp' | 'plush-change' | 'sofubi' | 'timeslip'
+type Tab = 'tryon' | 'stamp' | 'plush-change' | 'sofubi' | 'timeslip' | 'hair'
 
 const spBackground = new URL('./assets/UI/UI2/image.png', import.meta.url).href
 const wearLogo = new URL('./assets/UI/UI2/wear_am_i_logo-01 1.png', import.meta.url).href
@@ -18,6 +20,7 @@ const iconToy = new URL('./assets/UI/UI2/button/image copy.png', import.meta.url
 const iconFigure = new URL('./assets/UI/UI2/button/image copy 2.png', import.meta.url).href
 const iconAlbum = new URL('./assets/UI/UI2/button/image copy 3.png', import.meta.url).href
 const iconTryon = new URL('./assets/UI/UI2/button/image copy 4.png', import.meta.url).href
+const iconHair = new URL('./assets/髪型/image.png', import.meta.url).href
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'stamp', label: 'LINE STAMP', icon: iconStamp },
@@ -25,10 +28,25 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'sofubi', label: 'FIGURE', icon: iconFigure },
   { key: 'timeslip', label: 'ALBUM', icon: iconAlbum },
   { key: 'tryon', label: 'AI 試着', icon: iconTryon },
+  { key: 'hair', label: 'HAIR', icon: iconHair },
 ]
 
 function App() {
   const [tab, setTab] = useState<Tab>('tryon')
+  // 撮影した写真は全機能で共有（一度撮れば別タブへ引き継ぐ）
+  const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
+  const [capturedSize, setCapturedSize] = useState<ImageSize | null>(null)
+  const handleCapture = (url: string | null, blob: Blob | null, size: ImageSize | null = null) => {
+    // 撮り直し時に前回のオブジェクトURLを解放（リーク防止）
+    setCapturedUrl((prev) => {
+      if (prev && prev !== url) URL.revokeObjectURL(prev)
+      return url
+    })
+    setCapturedBlob(blob)
+    setCapturedSize(size)
+  }
+  const capture = { capturedUrl, capturedBlob, capturedSize, onCapture: handleCapture }
 
   return (
     <div className="min-h-screen w-full bg-[#efe1ae] flex justify-center text-[#2a1905] leading-[1.4]">
@@ -83,11 +101,12 @@ function App() {
             </div>
           </section>
 
-          {tab === 'tryon' && <TryOnModule />}
-          {tab === 'stamp' && <LineStampModule />}
-          {tab === 'plush-change' && <PlushChangeModule />}
-          {tab === 'sofubi' && <SofubiModule />}
-          {tab === 'timeslip' && <TimeSlipModule />}
+          {tab === 'tryon' && <TryOnModule {...capture} />}
+          {tab === 'stamp' && <LineStampModule {...capture} />}
+          {tab === 'plush-change' && <PlushChangeModule {...capture} />}
+          {tab === 'sofubi' && <SofubiModule {...capture} />}
+          {tab === 'timeslip' && <TimeSlipModule {...capture} />}
+          {tab === 'hair' && <HairStyleModule {...capture} />}
         </div>
       </div>
     </div>

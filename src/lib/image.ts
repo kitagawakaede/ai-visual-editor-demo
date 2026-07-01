@@ -1,5 +1,14 @@
 export type ImageSize = { width: number; height: number }
 
+// 撮影した写真を全機能で共有するための props。App が保持し各モジュールへ渡す。
+// 一度撮影すれば別タブに切り替えても引き継がれる（機能ごとの撮り直し不要）。
+export type CaptureShare = {
+  capturedUrl: string | null
+  capturedBlob: Blob | null
+  capturedSize: ImageSize | null
+  onCapture: (url: string | null, blob: Blob | null, size?: ImageSize | null) => void
+}
+
 export const CAMERA_ASPECT_RATIO = 3 / 4
 
 export const videoConstraints: MediaStreamConstraints['video'] = {

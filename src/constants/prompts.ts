@@ -329,7 +329,7 @@ export const HAIR_STYLE_ITEMS: HairStyleItem[] = [
     'パーマで束感を出したショート。全体にランダムな動きのある今どきスタイル'),
 ]
 
-// 上位3枚の生成画像を gpt-4o(vision) で採点するプロンプト。
+// 生成画像を gpt-4o(vision) で採点するプロンプト（生成成功した全枚を並列採点）。
 // 2項目を各1〜5の整数で JSON 返答させる。small=女性:小顔効果/男性:爽やかさ、refined=垢抜け度。
 export const HAIRSTYLE_SCORE_PROMPT = (gender: 'man' | 'woman'): string => {
   const firstLabel = gender === 'man' ? '爽やかさ(freshness)' : '小顔効果(small-face effect)'

@@ -210,7 +210,7 @@ export async function detectGenderFromImage(imageBlob: Blob): Promise<'man' | 'w
   }
 }
 
-// 上位3枚の生成画像を gpt-4o で採点し、2項目（各1〜5）を返す。
+// 生成画像を gpt-4o で採点し、2項目（各1〜5）を返す。呼び出し側で全枚を並列採点する。
 // 失敗・パース不能時は中央値 {small:3, refined:3} を返す（例外は投げない）。
 export async function scoreHairstyle(imageBlob: Blob, gender: 'man' | 'woman'): Promise<HairScore> {
   const fallback: HairScore = { small: 3, refined: 3 }

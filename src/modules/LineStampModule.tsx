@@ -54,7 +54,7 @@ export function LineStampModule({ capturedUrl, capturedBlob, onCapture }: Captur
     setStatus('撮影中...')
     try {
       const shot = await captureStill(videoRef.current)
-      onCapture(shot.url, shot.blob)
+      onCapture(shot.url, shot.blob, { width: shot.width, height: shot.height })
       setStatus('撮影完了。「スタンプ作成」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')

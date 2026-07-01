@@ -7,14 +7,11 @@ import { plushChangePromptBase } from '../constants/prompts'
 import { useOmikujiOverlay } from '../hooks/useOmikuji'
 import { WaitingGame } from '../components/WaitingGame'
 
-type ImageSize = { width: number; height: number }
-
 const plushRefUrl = new URL('../assets/image copy 2.png', import.meta.url).href
 
-export function PlushChangeModule({ capturedUrl, capturedBlob, onCapture }: CaptureShare) {
+export function PlushChangeModule({ capturedUrl, capturedBlob, capturedSize, onCapture }: CaptureShare) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [streamError, setStreamError] = useState<string | null>(null)
-  const [captureSize, setCaptureSize] = useState<ImageSize | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [resultQr, setResultQr] = useState<string | null>(null)
   const [isCorrupted, setIsCorrupted] = useState(false)
@@ -54,8 +51,7 @@ export function PlushChangeModule({ capturedUrl, capturedBlob, onCapture }: Capt
     setStatus('撮影中...')
     try {
       const shot = await captureStill(videoRef.current)
-      onCapture(shot.url, shot.blob)
-      setCaptureSize({ width: shot.width, height: shot.height })
+      onCapture(shot.url, shot.blob, { width: shot.width, height: shot.height })
       setStatus('撮影完了。「変身」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -85,7 +81,7 @@ export function PlushChangeModule({ capturedUrl, capturedBlob, onCapture }: Capt
       const result = await requestOpenAIImageEdit(plushChangePromptBase, capturedBlob, refBlob)
       if (result.base64 && isValidBase64Image(result.base64)) {
         const blob = await base64ToBlob(result.base64, 'image/jpeg')
-        const normalized = await normalizeImageToSize(blob, captureSize?.width, captureSize?.height)
+        const normalized = await normalizeImageToSize(blob, capturedSize?.width, capturedSize?.height)
         const displayUrl = URL.createObjectURL(normalized)
         setResultUrl(displayUrl)
         uploadToSupabase(normalized, 'plush-change', { compress: true })
@@ -99,7 +95,7 @@ export function PlushChangeModule({ capturedUrl, capturedBlob, onCapture }: Capt
         logError('plush-change-invalid-base64', result.base64)
       } else {
         const sourceBlob = await (await fetch(result.url)).blob()
-        const normalized = await normalizeImageToSize(sourceBlob, captureSize?.width, captureSize?.height)
+        const normalized = await normalizeImageToSize(sourceBlob, capturedSize?.width, capturedSize?.height)
         const displayUrl = URL.createObjectURL(normalized)
         setResultUrl(displayUrl)
         uploadToSupabase(normalized, 'plush-change', { compress: true })

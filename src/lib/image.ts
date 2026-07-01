@@ -5,7 +5,8 @@ export type ImageSize = { width: number; height: number }
 export type CaptureShare = {
   capturedUrl: string | null
   capturedBlob: Blob | null
-  onCapture: (url: string | null, blob: Blob | null) => void
+  capturedSize: ImageSize | null
+  onCapture: (url: string | null, blob: Blob | null, size?: ImageSize | null) => void
 }
 
 export const CAMERA_ASPECT_RATIO = 3 / 4

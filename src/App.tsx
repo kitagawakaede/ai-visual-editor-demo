@@ -5,6 +5,7 @@ import { SofubiModule } from './modules/SofubiModule'
 import { LineStampModule } from './modules/LineStampModule'
 import { TimeSlipModule } from './modules/TimeSlipModule'
 import { HairStyleModule } from './modules/HairStyleModule'
+import type { ImageSize } from './lib/image'
 
 type Tab = 'tryon' | 'stamp' | 'plush-change' | 'sofubi' | 'timeslip' | 'hair'
 
@@ -35,15 +36,17 @@ function App() {
   // 撮影した写真は全機能で共有（一度撮れば別タブへ引き継ぐ）
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
-  const handleCapture = (url: string | null, blob: Blob | null) => {
+  const [capturedSize, setCapturedSize] = useState<ImageSize | null>(null)
+  const handleCapture = (url: string | null, blob: Blob | null, size: ImageSize | null = null) => {
     // 撮り直し時に前回のオブジェクトURLを解放（リーク防止）
     setCapturedUrl((prev) => {
       if (prev && prev !== url) URL.revokeObjectURL(prev)
       return url
     })
     setCapturedBlob(blob)
+    setCapturedSize(size)
   }
-  const capture = { capturedUrl, capturedBlob, onCapture: handleCapture }
+  const capture = { capturedUrl, capturedBlob, capturedSize, onCapture: handleCapture }
 
   return (
     <div className="min-h-screen w-full bg-[#efe1ae] flex justify-center text-[#2a1905] leading-[1.4]">

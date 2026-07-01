@@ -78,6 +78,9 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
   const [status, setStatus] = useState(capturedBlob ? '撮影済み。「診断」を押してください' : '写真を撮影して「診断」を押してください')
   const [isLoading, setIsLoading] = useState(false)
   const [useGemini, setUseGemini] = useState(true)
+  // 診断ごとの世代ID。閉じる/再診断で更新し、古い非同期処理（QR後追い等）が
+  // 新しい結果に書き込むのを防ぐ。
+  const genIdRef = useRef(0)
   const { omikujiVisible, triggerOmikuji, resetOmikuji } = useOmikujiOverlay()
 
   useEffect(() => {
@@ -109,7 +112,7 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
     setStatus('撮影中...')
     try {
       const shot = await captureStill(videoRef.current)
-      onCapture(shot.url, shot.blob)
+      onCapture(shot.url, shot.blob, { width: shot.width, height: shot.height })
       setStatus('撮影完了。「診断」を押してください')
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '撮影に失敗しました')
@@ -151,6 +154,7 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
     triggerOmikuji()
     setIsLoading(true)
     setStatus('9枚を並列生成中...')
+    const myGen = ++genIdRef.current
     try {
       const g = await detectGenderFromImage(capturedBlob)
       setGender(g)
@@ -182,8 +186,12 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
           const sb = scoreByIndex.get(b) ?? { small: 0, refined: 0 }
           return sb.small + sb.refined - (sa.small + sa.refined)
         })
+      // 上位3枚を比較カードに昇格。ただし成功が3枚未満のときは昇格させず、
+      // 全枚をフラットなグリッド（星なし）で表示してレイアウト崩れを防ぐ。
       const categoryByIndex = new Map<number, '一番似合う' | '普通'>()
-      rankedIdx.slice(0, 3).forEach((i, rank) => categoryByIndex.set(i, rank === 0 ? '一番似合う' : '普通'))
+      if (rankedIdx.length >= 3) {
+        rankedIdx.slice(0, 3).forEach((i, rank) => categoryByIndex.set(i, rank === 0 ? '一番似合う' : '普通'))
+      }
 
       const slots: HairSlot[] = HAIR_STYLE_ITEMS.map((item, i) => ({
         id: item.id,
@@ -192,6 +200,8 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
         score: scoreByIndex.get(i) ?? null,
         category: categoryByIndex.get(i) ?? null,
       }))
+      // 閉じる/再診断で世代が進んでいたら、この実行の結果は破棄する
+      if (genIdRef.current !== myGen) return
       const successCount = slots.filter((s) => s.url).length
       if (successCount === 0) {
         setServerError(true)
@@ -205,7 +215,7 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
       buildHairComposite(slots)
         .then((blob) => (blob ? uploadToSupabase(blob, 'hair', { compress: true, maxSize: 1440, quality: 0.82 }) : null))
         .then((url) => (url ? generateQrDataUrl(url) : null))
-        .then((qr) => qr && setResultQr(qr))
+        .then((qr) => qr && genIdRef.current === myGen && setResultQr(qr))
         .catch((err) => logError('hair-qr', err))
     } catch (err) {
       setServerError(true)
@@ -218,6 +228,7 @@ export function HairStyleModule({ capturedUrl, capturedBlob, onCapture }: Captur
   }
 
   const handleCloseResult = () => {
+    genIdRef.current++ // 進行中の非同期処理が閉じた後に書き戻すのを無効化
     setResults(null)
     setResultQr(null)
     setResultVisible(false)

@@ -696,13 +696,12 @@ import { HairStyleModule } from './modules/HairStyleModule'
 type Tab = 'tryon' | 'stamp' | 'plush-change' | 'sofubi' | 'timeslip' | 'hair'
 ```
 
-- [ ] **Step 2: タブアイコン（暫定プレースホルダ）を定義**
+- [ ] **Step 2: タブアイコンを定義**
 
-`src/App.tsx:20` の `iconTryon` 定義の直後に追加（**6個目のアイコン素材は未入手のため暫定で既存の album アイコンを流用**。素材入手後に差し替える）:
+`src/App.tsx:20` の `iconTryon` 定義の直後に追加（6個目アイコンは `src/assets/髪型/image.png` を使用）:
 
 ```tsx
-// TODO(素材差し替え): 6個目アイコン素材が未入手のため暫定で album アイコンを流用
-const iconHair = iconAlbum
+const iconHair = new URL('./assets/髪型/image.png', import.meta.url).href
 ```
 
 `TABS` 配列（`src/App.tsx:22-28`）の末尾に1件追加:

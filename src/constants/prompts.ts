@@ -270,3 +270,68 @@ export const TIME_SLIP_ITEMS: TimeSlipItem[] = [
   BOSOZOKU_ITEM,
   ...ERA_ITEMS,
 ]
+
+// ── ヘアスタイル診断（6個目の機能）────────────────────────────
+// 本人の顔・輪郭・骨格を保持し、髪型だけを変える。参照画像は渡さずテキストのみ生成
+// （別人の顔が混入せず本人を保てる。TimeSlip と同方針）。性別で出し分ける。
+export type HairScore = { small: number; refined: number }
+
+export type HairStyleItem = {
+  id: string
+  label: string
+  promptByGender: { man: string; woman: string }
+}
+
+const hairStyleBase = (scene: string) =>
+  `1枚の人物写真をもとに、その人物の髪型だけを変えた実写風のヘアカタログ写真を作る。【最重要・本人の同一性】写真の本人の顔（顔立ち・輪郭・骨格・目鼻口の形と配置・眉・肌の色と質感・表情の癖）と、首から下の体格・体型・服装は忠実に保持し、本人だと一目で分かるようにすること。別人の顔に置き換えないこと。年齢・性別も現在の本人のまま。${scene}。変えてよいのは髪型（髪の長さ・毛流れ・前髪・分け目・毛先・ボリューム・軽いカラー）だけで、それ以外（顔・体・服）は写真のまま保つこと。明るい無地の背景で、正面〜ややバストアップの構図。合成感のない実写風の1枚に自然に仕上げること。最終的に1枚の画像のみを生成し、Base64文字列のみを返せ。テキスト・JSON・Markdownは禁止。`
+
+const hairItem = (
+  id: string,
+  label: string,
+  woman: string,
+  man: string,
+): HairStyleItem => ({
+  id,
+  label,
+  promptByGender: {
+    woman: hairStyleBase(`完成画像の人物は必ず女性として描くこと（男性化させない）。髪型は「${woman}」にすること`),
+    man: hairStyleBase(`完成画像の人物は必ず男性として描くこと（女性化させない）。髪型は「${man}」にすること`),
+  },
+})
+
+export const HAIR_STYLE_ITEMS: HairStyleItem[] = [
+  hairItem('h1', 'くびれミディ×シースルーバング',
+    'あごから鎖骨あたりの長さの、首元でくびれるレイヤーの効いたミディアム。毛先は軽く外ハネ、前髪は隙間の見えるシースルーバング',
+    'ナチュラルな爽やかマッシュに、隙間の見えるシースルーバング。清潔感のある毛流れ'),
+  hairItem('h2', 'ナチュラルボブ×軽め外ハネ',
+    'あご下ラインの丸みのあるナチュラルボブ。毛先を軽く外ハネにした抜け感のあるスタイル',
+    '短めのナチュラルショート。毛先を軽く外に流した、清潔感のある好青年スタイル'),
+  hairItem('h3', 'ゆる巻きセミロング',
+    '鎖骨より下のセミロングを、ゆるく大きめに巻いたやわらかいウェーブ。透明感のある明るめカラー',
+    '前髪を上げたセンターパートに、毛先へ向けてゆるい束感を出したこなれスタイル'),
+  hairItem('h4', '外ハネボブ',
+    'あごラインの外ハネボブ。毛先を全体的に外にはねさせた軽快なスタイル',
+    'サイドを刈り上げたツーブロックの短髪。トップは短く整えたすっきりスタイル'),
+  hairItem('h5', '耳かけボブ',
+    '片側を耳にかけたすっきりボブ。タイトで大人っぽい印象',
+    '前髪を立ち上げたアップバング。おでこを出した男らしいショート'),
+  hairItem('h6', 'ハーフアップ',
+    'トップをふんわりまとめたハーフアップ。残りの髪は軽く巻いて華やかに',
+    '韓国風の重ためマッシュ。厚めの前髪で目元まわりを包む柔らかいスタイル'),
+  hairItem('h7', '低めポニー',
+    'うなじで結んだ低めのポニーテール。後れ毛を出した抜け感のあるまとめ髪',
+    'トップに動きを出したソフトモヒカン。サイドは短く、中央を立ち上げた躍動スタイル'),
+  hairItem('h8', '韓国風ミディ',
+    '顔まわりにレイヤーを入れた韓国風ヨシンモリ。大きめ巻きの華やかなミディアム',
+    'かき上げ前髪のミディアム。大人っぽく色気のある毛流れ'),
+  hairItem('h9', 'センターパートロング',
+    '真ん中分けのストレートロング。毛先だけ軽く内巻きにした清楚なスタイル',
+    'パーマで束感を出したショート。全体にランダムな動きのある今どきスタイル'),
+]
+
+// 上位3枚の生成画像を gpt-4o(vision) で採点するプロンプト。
+// 2項目を各1〜5の整数で JSON 返答させる。small=女性:小顔効果/男性:爽やかさ、refined=垢抜け度。
+export const HAIRSTYLE_SCORE_PROMPT = (gender: 'man' | 'woman'): string => {
+  const firstLabel = gender === 'man' ? '爽やかさ(freshness)' : '小顔効果(small-face effect)'
+  return `You are a professional hair stylist judging how well this hairstyle suits the person in the photo. Rate two aspects, each an integer from 1 to 5 (5 = best). Aspect "small": ${firstLabel}. Aspect "refined": 垢抜け度 (how polished/stylish/refined they look). Reply with ONLY a compact JSON object and nothing else, e.g. {"small":4,"refined":5}.`
+}
